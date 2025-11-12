@@ -1,1 +1,916 @@
-1
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIUCQ Drummondville – Surveillance du niveau d'eau</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.5/dist/chart.umd.min.js" integrity="sha256-xNHpQg1q0xXzqQ4I6hO3nKLDnla4fK8pSt2TvseuxvI=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.umd.min.js" integrity="sha256-4PH9mqfj0COi4SsA/smYvWx1cIHw1CapV1UyTY7ekxg=" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --background: #0a1929;
+      --background-alt: #12293d;
+      --card: rgba(12, 29, 46, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #38bdf8;
+      --accent-strong: #0ea5e9;
+      --success: #34d399;
+      --warning: #facc15;
+      --danger: #f97316;
+      --text: #f1f5f9;
+      font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.35), transparent 55%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.25), transparent 45%),
+        linear-gradient(160deg, #030712 0%, #0b192d 45%, #020617 100%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 3.5rem 5vw 2rem;
+      background: linear-gradient(135deg, rgba(8, 47, 73, 0.95), rgba(8, 145, 178, 0.55));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 20px 60px rgba(15, 118, 110, 0.2);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3rem);
+      letter-spacing: 0.02em;
+    }
+
+    header p {
+      margin: 0.75rem 0 0;
+      max-width: 720px;
+      line-height: 1.6;
+      color: rgba(241, 245, 249, 0.85);
+    }
+
+    main {
+      flex: 1;
+      padding: 2.5rem 5vw 4rem;
+      display: grid;
+      gap: 2rem;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 1.75rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.45);
+    }
+
+    .panel h2 {
+      margin: 0 0 1rem;
+      font-size: 1.4rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .filters {
+      display: grid;
+      gap: 1.25rem;
+    }
+
+    .filters form {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+
+    label {
+      font-weight: 500;
+      font-size: 0.95rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      color: rgba(241, 245, 249, 0.85);
+    }
+
+    input[type="date"],
+    select {
+      padding: 0.75rem 0.9rem;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text);
+      font-size: 0.95rem;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input[type="date"]:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    button {
+      padding: 0.75rem 1.35rem;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #0f172a;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 25px rgba(56, 189, 248, 0.35);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .auto-refresh {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.65);
+      border-radius: 18px;
+      padding: 1.4rem;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .card .label {
+      font-size: 0.95rem;
+      color: rgba(203, 213, 225, 0.9);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .card .value {
+      font-size: 2rem;
+      font-weight: 600;
+    }
+
+    .card .delta {
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+    }
+
+    .delta.up {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--success);
+    }
+
+    .delta.down {
+      background: rgba(250, 204, 21, 0.15);
+      color: var(--warning);
+    }
+
+    .delta.flat {
+      background: rgba(148, 163, 184, 0.2);
+      color: rgba(226, 232, 240, 0.85);
+    }
+
+    .status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.95rem;
+      color: rgba(203, 213, 225, 0.8);
+    }
+
+    .status strong {
+      color: var(--accent);
+    }
+
+    .chart-panel canvas {
+      width: 100% !important;
+      max-height: 360px;
+    }
+
+    .table-wrapper {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      max-height: 420px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(10, 19, 29, 0.8);
+    }
+
+    thead {
+      background: rgba(15, 23, 42, 0.75);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    th,
+    td {
+      padding: 0.9rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+      font-size: 0.95rem;
+    }
+
+    th {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      color: rgba(203, 213, 225, 0.85);
+    }
+
+    tbody tr:hover {
+      background: rgba(56, 189, 248, 0.12);
+    }
+
+    .empty-state {
+      padding: 2rem;
+      text-align: center;
+      color: rgba(226, 232, 240, 0.75);
+      font-size: 1.05rem;
+    }
+
+    footer {
+      padding: 1.5rem 5vw 2.5rem;
+      font-size: 0.85rem;
+      color: rgba(148, 163, 184, 0.75);
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 680px) {
+      header {
+        padding: 2.75rem 1.5rem 2rem;
+      }
+
+      main {
+        padding: 2rem 1.5rem 3.25rem;
+      }
+
+      .panel {
+        padding: 1.35rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SIUCQ Drummondville – Surveillance du niveau d'eau</h1>
+    <p>
+      Tableau de bord en temps (presque) réel basé sur les données publiques d'Hydro-Québec pour suivre les
+      niveaux d'eau observés dans la région de Drummondville. Utilisez les filtres ci-dessous pour analyser les
+      tendances et préparer vos interventions.
+    </p>
+  </header>
+
+  <main>
+    <section class="panel filters" aria-labelledby="filters-title">
+      <h2 id="filters-title">Paramètres de visualisation</h2>
+      <form id="controls-form">
+        <div class="field-grid">
+          <label>
+            Date de début
+            <input type="date" id="start-date" name="start" />
+          </label>
+          <label>
+            Date de fin
+            <input type="date" id="end-date" name="end" />
+          </label>
+          <label>
+            Nombre maximum de relevés
+            <select id="limit" name="limit">
+              <option value="50">50 dernières mesures</option>
+              <option value="100">100 dernières mesures</option>
+              <option value="200">200 dernières mesures</option>
+            </select>
+          </label>
+          <label>
+            Série à afficher sur le graphique
+            <select id="series-select" name="series">
+              <option value="waterLevel">Niveau d'eau</option>
+              <option value="flow">Débit</option>
+              <option value="precipitation">Précipitations</option>
+            </select>
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" id="refresh-button">
+            <span aria-hidden="true">🔄</span>
+            Actualiser maintenant
+          </button>
+          <label class="auto-refresh">
+            <input type="checkbox" id="auto-refresh" />
+            Rafraîchissement automatique (5&nbsp;min)
+          </label>
+          <span class="status" id="status-text" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="summary-title">
+      <h2 id="summary-title">Résumé opérationnel</h2>
+      <div class="summary-cards" id="summary-cards">
+        <article class="card">
+          <span class="label">Station</span>
+          <span class="value" id="station-name">–</span>
+          <span class="delta flat" id="update-timestamp">Dernière mise à jour : –</span>
+        </article>
+        <article class="card">
+          <span class="label">Niveau actuel</span>
+          <span class="value" id="current-level">–</span>
+          <span class="delta" id="level-trend">–</span>
+        </article>
+        <article class="card">
+          <span class="label">Débit</span>
+          <span class="value" id="current-flow">–</span>
+          <span class="delta" id="flow-trend">–</span>
+        </article>
+        <article class="card">
+          <span class="label">Précipitations 24 h</span>
+          <span class="value" id="current-precip">–</span>
+          <span class="delta" id="precip-trend">–</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel chart-panel" aria-labelledby="chart-title">
+      <h2 id="chart-title">Tendance temporelle</h2>
+      <canvas id="history-chart" aria-label="Graphique de l'évolution des mesures"></canvas>
+    </section>
+
+    <section class="panel" aria-labelledby="table-title">
+      <h2 id="table-title">Détails des observations</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Date et heure</th>
+              <th scope="col">Niveau (m)</th>
+              <th scope="col">Débit (m³/s)</th>
+              <th scope="col">Précipitations (mm)</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr class="empty-state">
+              <td colspan="4">Chargement des données en cours…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Données ouvertes fournies par <a href="https://donnees.hydroquebec.com/explore/dataset/donnees-hydrometeorologiques/information/"
+      target="_blank" rel="noopener">Hydro-Québec</a>. Tableau de bord conçu pour le SIUCQ Drummondville.
+  </footer>
+
+  <template id="row-template">
+    <tr>
+      <td class="date"></td>
+      <td class="level"></td>
+      <td class="flow"></td>
+      <td class="rain"></td>
+    </tr>
+  </template>
+
+  <script>
+    const API_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometeorologiques/records';
+    const FETCH_TIMEOUT = 15000;
+    const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000;
+
+    const FALLBACK_DATA = [
+      {
+        timestamp: '2024-04-06T13:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.82,
+        flow: 215,
+        precipitation: 0.0
+      },
+      {
+        timestamp: '2024-04-06T14:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.85,
+        flow: 220,
+        precipitation: 0.0
+      },
+      {
+        timestamp: '2024-04-06T15:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.9,
+        flow: 228,
+        precipitation: 0.2
+      },
+      {
+        timestamp: '2024-04-06T16:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.94,
+        flow: 235,
+        precipitation: 0.3
+      },
+      {
+        timestamp: '2024-04-06T17:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.92,
+        flow: 232,
+        precipitation: 0.1
+      },
+      {
+        timestamp: '2024-04-06T18:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.88,
+        flow: 226,
+        precipitation: 0.0
+      }
+    ];
+
+    const fieldHints = {
+      timestamp: ['date_observation', 'date_heure', 'date_releve', 'datetime', 'time', 'timestamp', 'date'],
+      waterLevel: ['niveau_eau_m', 'niveau_eau', 'niveau', 'niveau_m', 'height_m', 'niveau_deau_m'],
+      flow: ['debit_m3s', 'debit', 'flow', 'debit_m3_s'],
+      precipitation: ['precipitations_24_h_mm', 'precipitation', 'pluie_mm', 'pluie', 'precipitation_mm'],
+      stationName: ['nom_station', 'station', 'lieu', 'post', 'emplacement']
+    };
+
+    const state = {
+      rawRecords: [],
+      processedRecords: [],
+      fieldMap: {},
+      chart: null,
+      lastFetch: null,
+      usedFallback: false,
+      autoRefreshHandle: null
+    };
+
+    const elements = {
+      form: document.getElementById('controls-form'),
+      start: document.getElementById('start-date'),
+      end: document.getElementById('end-date'),
+      limit: document.getElementById('limit'),
+      series: document.getElementById('series-select'),
+      status: document.getElementById('status-text'),
+      refreshButton: document.getElementById('refresh-button'),
+      autoRefresh: document.getElementById('auto-refresh'),
+      stationName: document.getElementById('station-name'),
+      updateTimestamp: document.getElementById('update-timestamp'),
+      currentLevel: document.getElementById('current-level'),
+      levelTrend: document.getElementById('level-trend'),
+      currentFlow: document.getElementById('current-flow'),
+      flowTrend: document.getElementById('flow-trend'),
+      currentPrecip: document.getElementById('current-precip'),
+      precipTrend: document.getElementById('precip-trend'),
+      tableBody: document.getElementById('table-body'),
+      rowTemplate: document.getElementById('row-template'),
+      chartCanvas: document.getElementById('history-chart')
+    };
+
+    async function fetchWithTimeout(resource, options = {}) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+      try {
+        const response = await fetch(resource, { ...options, signal: controller.signal });
+        return response;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    async function loadRecords() {
+      const params = new URLSearchParams({
+        limit: elements.limit.value || '100',
+        q: 'Drummondville',
+        timezone: 'America/Toronto'
+      });
+
+      const url = `${API_URL}?${params.toString()}`;
+      const response = await fetchWithTimeout(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'SIUCQ-Drummondville-Dashboard'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data.results)) {
+        return data.results;
+      }
+      if (Array.isArray(data.records)) {
+        return data.records.map(record => ({ ...record.fields, record_timestamp: record.record_timestamp }));
+      }
+      throw new Error('Format de données inattendu.');
+    }
+
+    function detectFields(records) {
+      const sample = records.find(rec => rec && Object.keys(rec).length);
+      if (!sample) {
+        return {};
+      }
+      const fieldNames = new Set(Object.keys(sample));
+      const findField = (candidates) => candidates.find(name => fieldNames.has(name));
+      return {
+        timestamp: findField(fieldHints.timestamp),
+        waterLevel: findField(fieldHints.waterLevel),
+        flow: findField(fieldHints.flow),
+        precipitation: findField(fieldHints.precipitation),
+        stationName: findField(fieldHints.stationName)
+      };
+    }
+
+    function normaliseRecord(record, fieldMap) {
+      const getValue = (fieldName) => {
+        if (!fieldName) return undefined;
+        return record[fieldName];
+      };
+
+      const timestamp = getValue(fieldMap.timestamp) ?? record.record_timestamp ?? record['@timestamp'];
+      const parsedDate = timestamp ? new Date(timestamp) : null;
+
+      return {
+        raw: record,
+        stationName: (getValue(fieldMap.stationName) ?? 'Drummondville (supposé)'),
+        timestamp: parsedDate,
+        waterLevel: toNumber(getValue(fieldMap.waterLevel)),
+        flow: toNumber(getValue(fieldMap.flow)),
+        precipitation: toNumber(getValue(fieldMap.precipitation))
+      };
+    }
+
+    function toNumber(value) {
+      if (value === null || value === undefined || value === '') {
+        return undefined;
+      }
+      const number = Number(value);
+      return Number.isFinite(number) ? number : undefined;
+    }
+
+    function filterRecords(records) {
+      const startValue = elements.start.value ? new Date(elements.start.value) : null;
+      const endValue = elements.end.value ? new Date(elements.end.value) : null;
+      const inclusiveEnd = endValue ? new Date(endValue.getTime()) : null;
+      if (inclusiveEnd) {
+        inclusiveEnd.setDate(inclusiveEnd.getDate() + 1);
+      }
+
+      const filtered = records.filter(entry => {
+        if (!entry.timestamp) return false;
+        if (entry.stationName && !/drummondville/i.test(entry.stationName)) {
+          return false;
+        }
+        if (startValue && entry.timestamp < startValue) {
+          return false;
+        }
+        if (inclusiveEnd && entry.timestamp >= inclusiveEnd) {
+          return false;
+        }
+        return true;
+      });
+
+      return filtered.sort((a, b) => a.timestamp - b.timestamp);
+    }
+
+    function updateStatus(message, tone = 'info') {
+      const toneColor = {
+        info: 'rgba(148, 163, 184, 0.85)',
+        success: 'var(--success)',
+        warning: 'var(--warning)',
+        danger: 'var(--danger)'
+      };
+      elements.status.textContent = message;
+      elements.status.style.color = toneColor[tone] || toneColor.info;
+    }
+
+    function updateSummary(records) {
+      if (!records.length) {
+        elements.stationName.textContent = 'Aucune donnée';
+        elements.updateTimestamp.textContent = 'Dernière mise à jour : –';
+        elements.currentLevel.textContent = '–';
+        elements.currentFlow.textContent = '–';
+        elements.currentPrecip.textContent = '–';
+        elements.levelTrend.textContent = '–';
+        elements.levelTrend.className = 'delta flat';
+        elements.flowTrend.textContent = '–';
+        elements.flowTrend.className = 'delta flat';
+        elements.precipTrend.textContent = '–';
+        elements.precipTrend.className = 'delta flat';
+        return;
+      }
+
+      const latest = records[records.length - 1];
+      const previous = records[records.length - 2];
+      const formatNumber = (value, unit) => (typeof value === 'number' ? `${value.toFixed(2)} ${unit}` : '–');
+      const formatTimestamp = (date) => {
+        if (!(date instanceof Date) || Number.isNaN(date)) return 'Dernière mise à jour : –';
+        return `Dernière mise à jour : ${date.toLocaleString('fr-CA', {
+          hour12: false,
+          dateStyle: 'short',
+          timeStyle: 'short'
+        })}`;
+      };
+
+      elements.stationName.textContent = latest.stationName || 'Drummondville';
+      elements.updateTimestamp.textContent = formatTimestamp(latest.timestamp);
+      elements.levelTrend.textContent = computeDeltaText(latest.waterLevel, previous?.waterLevel, 'm');
+      elements.levelTrend.className = `delta ${computeDeltaClass(latest.waterLevel, previous?.waterLevel)}`;
+      elements.flowTrend.textContent = computeDeltaText(latest.flow, previous?.flow, 'm³/s');
+      elements.flowTrend.className = `delta ${computeDeltaClass(latest.flow, previous?.flow)}`;
+      elements.precipTrend.textContent = computeDeltaText(latest.precipitation, previous?.precipitation, 'mm');
+      elements.precipTrend.className = `delta ${computeDeltaClass(latest.precipitation, previous?.precipitation)}`;
+      elements.currentLevel.textContent = formatNumber(latest.waterLevel, 'm');
+      elements.currentFlow.textContent = formatNumber(latest.flow, 'm³/s');
+      elements.currentPrecip.textContent = formatNumber(latest.precipitation, 'mm');
+    }
+
+    function computeDeltaText(current, previous, unit) {
+      if (typeof current !== 'number' || typeof previous !== 'number') {
+        return 'Variation non disponible';
+      }
+      const delta = current - previous;
+      if (Math.abs(delta) < 0.005) {
+        return `Stable (${delta.toFixed(2)} ${unit})`;
+      }
+      const direction = delta > 0 ? 'Hausse' : 'Baisse';
+      return `${direction} de ${delta.toFixed(2)} ${unit}`;
+    }
+
+    function computeDeltaClass(current, previous) {
+      if (typeof current !== 'number' || typeof previous !== 'number') {
+        return 'flat';
+      }
+      const delta = current - previous;
+      if (Math.abs(delta) < 0.005) {
+        return 'flat';
+      }
+      return delta > 0 ? 'up' : 'down';
+    }
+
+    function updateTable(records) {
+      elements.tableBody.innerHTML = '';
+      if (!records.length) {
+        const row = document.createElement('tr');
+        row.className = 'empty-state';
+        const cell = document.createElement('td');
+        cell.colSpan = 4;
+        cell.textContent = 'Aucune donnée disponible pour la période sélectionnée.';
+        row.appendChild(cell);
+        elements.tableBody.appendChild(row);
+        return;
+      }
+
+      const formatter = new Intl.DateTimeFormat('fr-CA', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+        hour12: false
+      });
+
+      const template = elements.rowTemplate.content;
+
+      records.forEach(entry => {
+        const clone = template.cloneNode(true);
+        clone.querySelector('.date').textContent = entry.timestamp ? formatter.format(entry.timestamp) : '–';
+        clone.querySelector('.level').textContent = typeof entry.waterLevel === 'number' ? entry.waterLevel.toFixed(2) : '–';
+        clone.querySelector('.flow').textContent = typeof entry.flow === 'number' ? entry.flow.toFixed(2) : '–';
+        clone.querySelector('.rain').textContent = typeof entry.precipitation === 'number' ? entry.precipitation.toFixed(2) : '–';
+        elements.tableBody.appendChild(clone);
+      });
+    }
+
+    function updateChart(records) {
+      if (!state.chart) {
+        state.chart = new Chart(elements.chartCanvas, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: '',
+                data: [],
+                tension: 0.35,
+                fill: true,
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                type: 'time',
+                adapters: {
+                  date: {
+                    locale: 'fr-CA'
+                  }
+                },
+                ticks: {
+                  color: 'rgba(226, 232, 240, 0.65)'
+                },
+                grid: {
+                  color: 'rgba(148, 163, 184, 0.15)'
+                }
+              },
+              y: {
+                ticks: {
+                  color: 'rgba(226, 232, 240, 0.65)'
+                },
+                grid: {
+                  color: 'rgba(148, 163, 184, 0.15)'
+                }
+              }
+            },
+            plugins: {
+              legend: {
+                labels: {
+                  color: 'rgba(226, 232, 240, 0.8)'
+                }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                borderColor: 'rgba(56, 189, 248, 0.35)',
+                borderWidth: 1,
+                callbacks: {
+                  label: context => `${context.dataset.label}: ${Number(context.parsed.y).toFixed(2)}`
+                }
+              }
+            }
+          }
+        });
+      }
+
+      const datasetKey = elements.series.value;
+      const labelMap = {
+        waterLevel: "Niveau d'eau (m)",
+        flow: 'Débit (m³/s)',
+        precipitation: 'Précipitations (mm)'
+      };
+
+      const palette = getSeriesPalette(datasetKey);
+      const dataPoints = records
+        .filter(entry => typeof entry[datasetKey] === 'number')
+        .map(entry => ({ x: entry.timestamp, y: entry[datasetKey] }));
+
+      const dataset = state.chart.data.datasets[0];
+      state.chart.data.labels = dataPoints.map(point => point.x);
+      dataset.data = dataPoints;
+      dataset.label = labelMap[datasetKey];
+      dataset.borderColor = palette.border;
+      dataset.backgroundColor = palette.background;
+      dataset.pointBackgroundColor = palette.border;
+      dataset.pointBorderColor = palette.border;
+      state.chart.update();
+    }
+
+    function getSeriesPalette(key) {
+      switch (key) {
+        case 'flow':
+          return { border: 'rgba(52, 211, 153, 0.95)', background: 'rgba(52, 211, 153, 0.18)' };
+        case 'precipitation':
+          return { border: 'rgba(250, 204, 21, 0.95)', background: 'rgba(250, 204, 21, 0.18)' };
+        case 'waterLevel':
+        default:
+          return { border: 'rgba(56, 189, 248, 0.95)', background: 'rgba(56, 189, 248, 0.18)' };
+      }
+    }
+
+    async function refreshDashboard() {
+      elements.refreshButton.disabled = true;
+      updateStatus('Récupération des données en cours…');
+
+      try {
+        const records = await loadRecords();
+        state.usedFallback = false;
+        state.rawRecords = records.map(record => (record.fields ? record.fields : record));
+        state.fieldMap = detectFields(state.rawRecords);
+        state.processedRecords = filterRecords(state.rawRecords.map(record => normaliseRecord(record, state.fieldMap)));
+        state.lastFetch = new Date();
+        updateStatus('Données officielles synchronisées avec succès.', 'success');
+      } catch (error) {
+        console.error(error);
+        state.usedFallback = true;
+        state.fieldMap = {
+          timestamp: 'timestamp',
+          waterLevel: 'waterLevel',
+          flow: 'flow',
+          precipitation: 'precipitation',
+          stationName: 'stationName'
+        };
+        state.rawRecords = FALLBACK_DATA;
+        state.processedRecords = filterRecords(FALLBACK_DATA.map(item => ({ ...item, timestamp: new Date(item.timestamp) })));
+        updateStatus("Impossible d'atteindre l'API d'Hydro-Québec, affichage d'un jeu de données de démonstration.", 'warning');
+      } finally {
+        renderDashboard();
+        elements.refreshButton.disabled = false;
+      }
+    }
+
+    function renderDashboard() {
+      updateSummary(state.processedRecords);
+      updateTable(state.processedRecords);
+      updateChart(state.processedRecords);
+      if (state.usedFallback) {
+        elements.updateTimestamp.textContent += ' (mode démo)';
+      }
+    }
+
+    function configureAutoRefresh() {
+      if (elements.autoRefresh.checked) {
+        if (!state.autoRefreshHandle) {
+          state.autoRefreshHandle = setInterval(refreshDashboard, AUTO_REFRESH_INTERVAL);
+        }
+      } else if (state.autoRefreshHandle) {
+        clearInterval(state.autoRefreshHandle);
+        state.autoRefreshHandle = null;
+      }
+    }
+
+    elements.form.addEventListener('submit', event => {
+      event.preventDefault();
+      refreshDashboard();
+    });
+
+    elements.series.addEventListener('change', () => {
+      updateChart(state.processedRecords);
+    });
+
+    elements.autoRefresh.addEventListener('change', configureAutoRefresh);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && state.autoRefreshHandle) {
+        clearInterval(state.autoRefreshHandle);
+        state.autoRefreshHandle = null;
+      } else if (!document.hidden && elements.autoRefresh.checked) {
+        configureAutoRefresh();
+      }
+    });
+
+    refreshDashboard();
+  </script>
+</body>
+</html>

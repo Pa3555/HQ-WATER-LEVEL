@@ -1,1 +1,1627 @@
-1
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIUCQ Drummondville – Surveillance du niveau d'eau</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.5/dist/chart.umd.min.js" integrity="sha256-xNHpQg1q0xXzqQ4I6hO3nKLDnla4fK8pSt2TvseuxvI=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.umd.min.js" integrity="sha256-4PH9mqfj0COi4SsA/smYvWx1cIHw1CapV1UyTY7ekxg=" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --background: #0a1929;
+      --background-alt: #12293d;
+      --card: rgba(12, 29, 46, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #38bdf8;
+      --accent-strong: #0ea5e9;
+      --success: #34d399;
+      --warning: #facc15;
+      --danger: #f97316;
+      --text: #f1f5f9;
+      font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.35), transparent 55%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.25), transparent 45%),
+        linear-gradient(160deg, #030712 0%, #0b192d 45%, #020617 100%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 3.5rem 5vw 2rem;
+      background: linear-gradient(135deg, rgba(8, 47, 73, 0.95), rgba(8, 145, 178, 0.55));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 20px 60px rgba(15, 118, 110, 0.2);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3rem);
+      letter-spacing: 0.02em;
+    }
+
+    header p {
+      margin: 0.75rem 0 0;
+      max-width: 720px;
+      line-height: 1.6;
+      color: rgba(241, 245, 249, 0.85);
+    }
+
+    main {
+      flex: 1;
+      padding: 2.5rem 5vw 4rem;
+      display: grid;
+      gap: 2rem;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 1.75rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.45);
+    }
+
+    .panel h2 {
+      margin: 0 0 1rem;
+      font-size: 1.4rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .filters {
+      display: grid;
+      gap: 1.25rem;
+    }
+
+    .filters form {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+
+    label {
+      font-weight: 500;
+      font-size: 0.95rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      color: rgba(241, 245, 249, 0.85);
+    }
+
+    input[type="date"],
+    select,
+    textarea {
+      padding: 0.75rem 0.9rem;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text);
+      font-size: 0.95rem;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input[type="date"]:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    button {
+      padding: 0.75rem 1.35rem;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #0f172a;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 25px rgba(56, 189, 248, 0.35);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    button.secondary {
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+
+    button.secondary:hover {
+      box-shadow: 0 10px 25px rgba(148, 163, 184, 0.25);
+    }
+
+    .auto-refresh {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .auth-panel p {
+      margin: 0 0 1rem;
+      line-height: 1.5;
+      color: rgba(203, 213, 225, 0.75);
+    }
+
+    .auth-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+
+    .auth-panel textarea {
+      resize: vertical;
+      min-height: 110px;
+      font-family: inherit;
+      line-height: 1.45;
+      width: 100%;
+    }
+
+    .auth-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .token-status {
+      min-height: 1.4rem;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.65);
+      border-radius: 18px;
+      padding: 1.4rem;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .card .label {
+      font-size: 0.95rem;
+      color: rgba(203, 213, 225, 0.9);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .card .value {
+      font-size: 2rem;
+      font-weight: 600;
+    }
+
+    .card .delta {
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+    }
+
+    .delta.up {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--success);
+    }
+
+    .delta.down {
+      background: rgba(250, 204, 21, 0.15);
+      color: var(--warning);
+    }
+
+    .delta.flat {
+      background: rgba(148, 163, 184, 0.2);
+      color: rgba(226, 232, 240, 0.85);
+    }
+
+    .status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.95rem;
+      color: rgba(203, 213, 225, 0.8);
+    }
+
+    .status strong {
+      color: var(--accent);
+    }
+
+    .chart-panel canvas {
+      width: 100% !important;
+      max-height: 360px;
+    }
+
+    .table-wrapper {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      max-height: 420px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(10, 19, 29, 0.8);
+    }
+
+    thead {
+      background: rgba(15, 23, 42, 0.75);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    th,
+    td {
+      padding: 0.9rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+      font-size: 0.95rem;
+    }
+
+    th {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      color: rgba(203, 213, 225, 0.85);
+    }
+
+    tbody tr:hover {
+      background: rgba(56, 189, 248, 0.12);
+    }
+
+    .empty-state {
+      padding: 2rem;
+      text-align: center;
+      color: rgba(226, 232, 240, 0.75);
+      font-size: 1.05rem;
+    }
+
+    footer {
+      padding: 1.5rem 5vw 2.5rem;
+      font-size: 0.85rem;
+      color: rgba(148, 163, 184, 0.75);
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 680px) {
+      header {
+        padding: 2.75rem 1.5rem 2rem;
+      }
+
+      main {
+        padding: 2rem 1.5rem 3.25rem;
+      }
+
+      .panel {
+        padding: 1.35rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SIUCQ Drummondville – Surveillance du niveau d'eau</h1>
+    <p>
+      Tableau de bord en temps (presque) réel basé sur les données publiques d'Hydro-Québec pour suivre les
+      niveaux d'eau observés dans la région de Drummondville. Utilisez les filtres ci-dessous pour analyser les
+      tendances et préparer vos interventions.
+    </p>
+  </header>
+
+  <main>
+    <section class="panel filters" aria-labelledby="filters-title">
+      <h2 id="filters-title">Paramètres de visualisation</h2>
+      <form id="controls-form">
+        <div class="field-grid">
+          <label>
+            Date de début
+            <input type="date" id="start-date" name="start" />
+          </label>
+          <label>
+            Date de fin
+            <input type="date" id="end-date" name="end" />
+          </label>
+          <label>
+            Nombre maximum de relevés
+            <select id="limit" name="limit">
+              <option value="50">50 dernières mesures</option>
+              <option value="100">100 dernières mesures</option>
+              <option value="200">200 dernières mesures</option>
+            </select>
+          </label>
+          <label>
+            Station hydrométrique
+            <select id="station-select" name="station" disabled>
+              <option value="">Chargement…</option>
+            </select>
+          </label>
+          <label>
+            Série à afficher sur le graphique
+            <select id="series-select" name="series">
+              <option value="waterLevel">Niveau d'eau</option>
+              <option value="flow">Débit</option>
+              <option value="precipitation">Précipitations</option>
+            </select>
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" id="refresh-button">
+            <span aria-hidden="true">🔄</span>
+            Actualiser maintenant
+          </button>
+          <label class="auto-refresh">
+            <input type="checkbox" id="auto-refresh" />
+            Rafraîchissement automatique (5&nbsp;min)
+          </label>
+          <span class="status" id="status-text" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel auth-panel" aria-labelledby="auth-title">
+      <h2 id="auth-title">Connexion à l'API</h2>
+      <p>
+        Hydro-Québec requiert un jeton OAuth2 pour accéder aux données en temps réel. Renseignez vos
+        identifiants d'application ou collez directement un jeton valide. Les informations sont conservées
+        uniquement dans votre navigateur.
+        <a href="https://help.opendatasoft.com/apis/ods-explore-v2/#section/Authentication/Using-OAuth2-authorization" target="_blank" rel="noopener">
+          En savoir plus</a>.
+      </p>
+      <div class="auth-grid">
+        <label>
+          Client ID
+          <input type="text" id="client-id" autocomplete="off" spellcheck="false" />
+        </label>
+        <label>
+          Client secret
+          <input type="password" id="client-secret" autocomplete="off" spellcheck="false" />
+        </label>
+      </div>
+      <div class="auth-actions">
+        <button type="button" id="save-credentials">Enregistrer les identifiants</button>
+        <button type="button" id="request-token">Obtenir un jeton OAuth2</button>
+        <button type="button" id="clear-credentials" class="secondary">Effacer la configuration</button>
+      </div>
+      <label>
+        Jeton d'accès
+        <textarea id="access-token" spellcheck="false" autocomplete="off"></textarea>
+      </label>
+      <div class="auth-actions">
+        <button type="button" id="save-token">Enregistrer le jeton</button>
+        <span class="status token-status" id="token-status"></span>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="summary-title">
+      <h2 id="summary-title">Résumé opérationnel</h2>
+      <div class="summary-cards" id="summary-cards">
+        <article class="card">
+          <span class="label">Station</span>
+          <span class="value" id="station-name">–</span>
+          <span class="delta flat" id="update-timestamp">Dernière mise à jour : –</span>
+        </article>
+        <article class="card">
+          <span class="label">Niveau actuel</span>
+          <span class="value" id="current-level">–</span>
+          <span class="delta" id="level-trend">–</span>
+        </article>
+        <article class="card">
+          <span class="label">Débit</span>
+          <span class="value" id="current-flow">–</span>
+          <span class="delta" id="flow-trend">–</span>
+        </article>
+        <article class="card">
+          <span class="label">Précipitations 24 h</span>
+          <span class="value" id="current-precip">–</span>
+          <span class="delta" id="precip-trend">–</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel chart-panel" aria-labelledby="chart-title">
+      <h2 id="chart-title">Tendance temporelle</h2>
+      <canvas id="history-chart" aria-label="Graphique de l'évolution des mesures"></canvas>
+    </section>
+
+    <section class="panel" aria-labelledby="table-title">
+      <h2 id="table-title">Détails des observations</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Date et heure</th>
+              <th scope="col">Niveau (m)</th>
+              <th scope="col">Débit (m³/s)</th>
+              <th scope="col">Précipitations (mm)</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr class="empty-state">
+              <td colspan="4">Chargement des données en cours…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Données ouvertes fournies par <a href="https://donnees.hydroquebec.com/explore/dataset/donnees-hydrometeorologiques/information/"
+      target="_blank" rel="noopener">Hydro-Québec</a>. Tableau de bord conçu pour le SIUCQ Drummondville.
+  </footer>
+
+  <template id="row-template">
+    <tr>
+      <td class="date"></td>
+      <td class="level"></td>
+      <td class="flow"></td>
+      <td class="rain"></td>
+    </tr>
+  </template>
+
+  <script>
+    const API_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometeorologiques/records';
+    const AGGREGATES_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometeorologiques/aggregates';
+    const FETCH_TIMEOUT = 15000;
+    const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000;
+    const DEFAULT_STATION_NAME = 'Drummondville';
+    const DEFAULT_REGION = 'Centre-du-Québec';
+    const REGION_RESTRICTION = `regionqc:"${DEFAULT_REGION}"`;
+    const OAUTH_TOKEN_URL = 'https://donnees.hydroquebec.com/oauth/token';
+    const AUTH_STORAGE_KEY = 'hq-water-level::oauth';
+    const TONE_COLORS = {
+      info: 'rgba(148, 163, 184, 0.85)',
+      success: 'var(--success)',
+      warning: 'var(--warning)',
+      danger: 'var(--danger)'
+    };
+
+    const FALLBACK_DATA = [
+      {
+        timestamp: '2024-04-06T13:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.82,
+        flow: 215,
+        precipitation: 0.0
+      },
+      {
+        timestamp: '2024-04-06T14:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.85,
+        flow: 220,
+        precipitation: 0.0
+      },
+      {
+        timestamp: '2024-04-06T15:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.9,
+        flow: 228,
+        precipitation: 0.2
+      },
+      {
+        timestamp: '2024-04-06T16:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.94,
+        flow: 235,
+        precipitation: 0.3
+      },
+      {
+        timestamp: '2024-04-06T17:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.92,
+        flow: 232,
+        precipitation: 0.1
+      },
+      {
+        timestamp: '2024-04-06T18:00:00-04:00',
+        stationName: 'Drummondville',
+        waterLevel: 1.88,
+        flow: 226,
+        precipitation: 0.0
+      }
+    ];
+    const FALLBACK_STATIONS = ['Drummondville'];
+
+    const fieldHints = {
+      timestamp: ['date_observation', 'date_heure', 'date_releve', 'datetime', 'time', 'timestamp', 'date'],
+      waterLevel: ['niveau_eau_m', 'niveau_eau', 'niveau', 'niveau_m', 'height_m', 'niveau_deau_m'],
+      flow: ['debit_m3s', 'debit', 'flow', 'debit_m3_s'],
+      precipitation: ['precipitations_24_h_mm', 'precipitation', 'pluie_mm', 'pluie', 'precipitation_mm'],
+      stationName: ['nom_station', 'nom_de_station', 'nom_de_la_station', 'nom', 'station', 'station_name', 'lieu', 'poste', 'post', 'emplacement']
+    };
+
+    const state = {
+      rawRecords: [],
+      normalizedRecords: [],
+      processedRecords: [],
+      availableStations: [],
+      selectedStation: DEFAULT_STATION_NAME,
+      fieldMap: {},
+      chart: null,
+      lastFetch: null,
+      usedFallback: false,
+      autoRefreshHandle: null,
+      auth: {
+        clientId: '',
+        clientSecret: '',
+        accessToken: '',
+        tokenExpiresAt: null,
+        tokenType: 'Bearer',
+        refreshPromise: null,
+        tokenStatusOverride: null,
+        tokenStatusTimeout: null
+      },
+      statusLock: false
+    };
+
+    const elements = {
+      form: document.getElementById('controls-form'),
+      start: document.getElementById('start-date'),
+      end: document.getElementById('end-date'),
+      limit: document.getElementById('limit'),
+      stationSelect: document.getElementById('station-select'),
+      series: document.getElementById('series-select'),
+      status: document.getElementById('status-text'),
+      refreshButton: document.getElementById('refresh-button'),
+      autoRefresh: document.getElementById('auto-refresh'),
+      stationName: document.getElementById('station-name'),
+      updateTimestamp: document.getElementById('update-timestamp'),
+      currentLevel: document.getElementById('current-level'),
+      levelTrend: document.getElementById('level-trend'),
+      currentFlow: document.getElementById('current-flow'),
+      flowTrend: document.getElementById('flow-trend'),
+      currentPrecip: document.getElementById('current-precip'),
+      precipTrend: document.getElementById('precip-trend'),
+      tableBody: document.getElementById('table-body'),
+      rowTemplate: document.getElementById('row-template'),
+      chartCanvas: document.getElementById('history-chart'),
+      clientId: document.getElementById('client-id'),
+      clientSecret: document.getElementById('client-secret'),
+      accessToken: document.getElementById('access-token'),
+      saveCredentials: document.getElementById('save-credentials'),
+      requestToken: document.getElementById('request-token'),
+      clearCredentials: document.getElementById('clear-credentials'),
+      saveToken: document.getElementById('save-token'),
+      tokenStatus: document.getElementById('token-status')
+    };
+
+    async function fetchWithTimeout(resource, options = {}) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+      try {
+        const response = await fetch(resource, { ...options, signal: controller.signal });
+        return response;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    function getStorage() {
+      try {
+        return window.localStorage;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function loadPersistedAuth() {
+      const storage = getStorage();
+      if (!storage) return;
+      try {
+        const raw = storage.getItem(AUTH_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return;
+        state.auth.clientId = parsed.clientId || '';
+        state.auth.clientSecret = parsed.clientSecret || '';
+        state.auth.accessToken = parsed.accessToken || '';
+        state.auth.tokenType = parsed.tokenType || 'Bearer';
+        state.auth.tokenExpiresAt = typeof parsed.tokenExpiresAt === 'number' ? parsed.tokenExpiresAt : null;
+      } catch (error) {
+        console.warn('Impossible de charger la configuration OAuth locale.', error);
+      }
+    }
+
+    function persistAuthState() {
+      const storage = getStorage();
+      if (!storage) return;
+      try {
+        const payload = {
+          clientId: state.auth.clientId || '',
+          clientSecret: state.auth.clientSecret || '',
+          accessToken: state.auth.accessToken || '',
+          tokenType: state.auth.tokenType || 'Bearer',
+          tokenExpiresAt:
+            typeof state.auth.tokenExpiresAt === 'number' && Number.isFinite(state.auth.tokenExpiresAt)
+              ? state.auth.tokenExpiresAt
+              : null
+        };
+        storage.setItem(AUTH_STORAGE_KEY, JSON.stringify(payload));
+      } catch (error) {
+        console.warn('Impossible de sauvegarder la configuration OAuth locale.', error);
+      }
+    }
+
+    function syncAuthInputs() {
+      if (elements.clientId) {
+        elements.clientId.value = state.auth.clientId || '';
+      }
+      if (elements.clientSecret) {
+        elements.clientSecret.value = state.auth.clientSecret || '';
+      }
+      if (elements.accessToken) {
+        elements.accessToken.value = state.auth.accessToken || '';
+      }
+    }
+
+    function clearTokenStatusTimeout() {
+      if (state.auth.tokenStatusTimeout) {
+        clearTimeout(state.auth.tokenStatusTimeout);
+        state.auth.tokenStatusTimeout = null;
+      }
+    }
+
+    function applyTokenStatus(message, tone = 'info') {
+      if (!elements.tokenStatus) return;
+      elements.tokenStatus.textContent = message;
+      elements.tokenStatus.style.color = TONE_COLORS[tone] || TONE_COLORS.info;
+    }
+
+    function setTokenStatusOverride(message, tone = 'info', autoClear = false) {
+      clearTokenStatusTimeout();
+      state.auth.tokenStatusOverride = { message, tone };
+      applyTokenStatus(message, tone);
+      if (autoClear) {
+        state.auth.tokenStatusTimeout = window.setTimeout(() => {
+          state.auth.tokenStatusOverride = null;
+          state.auth.tokenStatusTimeout = null;
+          updateTokenStatus();
+        }, 4000);
+      }
+    }
+
+    function updateTokenStatus() {
+      if (!elements.tokenStatus) return;
+      if (state.auth.tokenStatusOverride) {
+        applyTokenStatus(
+          state.auth.tokenStatusOverride.message,
+          state.auth.tokenStatusOverride.tone
+        );
+        return;
+      }
+
+      if (!state.auth.accessToken) {
+        applyTokenStatus(
+          "Aucun jeton OAuth2 enregistré. Fournissez un jeton pour interroger l'API protégée.",
+          'warning'
+        );
+        return;
+      }
+
+      if (typeof state.auth.tokenExpiresAt === 'number' && Number.isFinite(state.auth.tokenExpiresAt)) {
+        const diff = state.auth.tokenExpiresAt - Date.now();
+        if (diff <= 0) {
+          applyTokenStatus('Jeton expiré. Renouvelez-le pour continuer à recevoir les données.', 'danger');
+          return;
+        }
+        const totalMinutes = Math.floor(diff / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = Math.max(totalMinutes % 60, diff < 60000 ? 1 : 0);
+        let descriptor = '';
+        if (hours >= 1) {
+          descriptor = minutes ? `${hours} h ${minutes} min` : `${hours} h`;
+        } else {
+          const safeMinutes = Math.max(totalMinutes, 1);
+          descriptor = `${safeMinutes} min`;
+        }
+        const tone = diff < 5 * 60 * 1000 ? 'warning' : 'success';
+        applyTokenStatus(`Jeton actif – expiration dans ${descriptor}.`, tone);
+        return;
+      }
+
+      applyTokenStatus("Jeton OAuth2 enregistré. La date d'expiration est gérée par Hydro-Québec.", 'success');
+    }
+
+    function applyTokenResponse(payload) {
+      if (!payload || !payload.access_token) {
+        throw new Error("Réponse OAuth2 invalide : aucun jeton n'a été retourné.");
+      }
+      state.auth.accessToken = payload.access_token;
+      state.auth.tokenType = payload.token_type || 'Bearer';
+      if (typeof payload.expires_in === 'number' && Number.isFinite(payload.expires_in)) {
+        state.auth.tokenExpiresAt = Date.now() + payload.expires_in * 1000;
+      } else {
+        state.auth.tokenExpiresAt = null;
+      }
+      persistAuthState();
+      syncAuthInputs();
+    }
+
+    async function requestAccessToken(clientId, clientSecret) {
+      if (!clientId || !clientSecret) {
+        throw new Error('Client ID et secret requis pour obtenir un jeton OAuth2.');
+      }
+      const body = new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret
+      });
+      const response = await fetchWithTimeout(OAUTH_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json'
+        },
+        body: body.toString()
+      });
+      if (!response.ok) {
+        let details = '';
+        try {
+          const errorPayload = await response.json();
+          details = errorPayload.error_description || errorPayload.error || '';
+        } catch (parseError) {
+          details = '';
+        }
+        const reason = details ? ` – ${details}` : '';
+        throw new Error(`Impossible d'obtenir un jeton OAuth2 (HTTP ${response.status})${reason}`);
+      }
+      return response.json();
+    }
+
+    async function tryRefreshToken(showFeedback = false) {
+      if (!state.auth.clientId || !state.auth.clientSecret) {
+        return false;
+      }
+
+      if (state.auth.refreshPromise) {
+        try {
+          await state.auth.refreshPromise;
+          return Boolean(state.auth.accessToken);
+        } catch (error) {
+          return false;
+        }
+      }
+
+      if (showFeedback) {
+        setTokenStatusOverride('Renouvellement du jeton OAuth2…', 'info');
+      }
+
+      const refreshPromise = (async () => {
+        try {
+          const payload = await requestAccessToken(state.auth.clientId, state.auth.clientSecret);
+          applyTokenResponse(payload);
+          updateTokenStatus();
+          if (showFeedback) {
+            setTokenStatusOverride('Nouveau jeton OAuth2 reçu.', 'success', true);
+          }
+          return true;
+        } catch (error) {
+          console.error('Échec du renouvellement OAuth2', error);
+          const message =
+            error?.message ||
+            "Impossible d'obtenir un jeton OAuth2. Vérifiez les identifiants client fournis.";
+          setTokenStatusOverride(message, 'danger');
+          throw error;
+        }
+      })();
+
+      state.auth.refreshPromise = refreshPromise;
+
+      try {
+        return await refreshPromise;
+      } catch (error) {
+        return false;
+      } finally {
+        state.auth.refreshPromise = null;
+      }
+    }
+
+    async function ensureValidTokenFreshness() {
+      if (state.auth.accessToken) {
+        if (typeof state.auth.tokenExpiresAt === 'number' && Number.isFinite(state.auth.tokenExpiresAt)) {
+          const margin = 2 * 60 * 1000;
+          if (Date.now() >= state.auth.tokenExpiresAt - margin) {
+            await tryRefreshToken(false);
+          }
+        }
+        return;
+      }
+
+      if (state.auth.clientId && state.auth.clientSecret) {
+        await tryRefreshToken(false);
+      }
+    }
+
+    async function authorisedFetch(resource, options = {}, meta = {}) {
+      await ensureValidTokenFreshness();
+
+      const headers = new Headers(options.headers || {});
+      if (!headers.has('Accept')) {
+        headers.set('Accept', 'application/json');
+      }
+
+      if (state.auth.accessToken) {
+        headers.set('Authorization', `${state.auth.tokenType || 'Bearer'} ${state.auth.accessToken}`);
+      }
+
+      const response = await fetchWithTimeout(resource, { ...options, headers });
+
+      if ((response.status === 401 || response.status === 403) && meta.retry !== false) {
+        const refreshed = await tryRefreshToken(false);
+        if (refreshed) {
+          return authorisedFetch(resource, options, { retry: false });
+        }
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        const hasCredentials = Boolean(
+          state.auth.accessToken ||
+            (state.auth.clientId && state.auth.clientSecret)
+        );
+
+        if (hasCredentials) {
+          const message =
+            response.status === 401
+              ? "Jeton OAuth2 invalide ou expiré. Mettez-le à jour dans la section « Connexion à l'API »."
+              : "Accès refusé par l'API Hydro-Québec pour cette requête.";
+          setTokenStatusOverride(message, 'danger');
+          const error = new Error(message);
+          error.code = 'unauthorized';
+          error.status = response.status;
+          throw error;
+        }
+
+        const genericError = new Error("Requête non autorisée par l'API Hydro-Québec.");
+        genericError.status = response.status;
+        throw genericError;
+      }
+
+      return response;
+    }
+
+    async function loadStationDirectory() {
+      const discovered = new Map();
+      const addStation = (name) => {
+        const normalised = normaliseStationName(name);
+        if (!normalised) {
+          return;
+        }
+        const key = normalised.toLocaleLowerCase('fr-CA');
+        if (!discovered.has(key)) {
+          discovered.set(key, normalised);
+        }
+      };
+
+      for (const field of fieldHints.stationName) {
+        const params = new URLSearchParams({
+          select: field,
+          group_by: field,
+          order_by: field,
+          limit: '500',
+          where: `${field} IS NOT NULL`
+        });
+
+        if (REGION_RESTRICTION) {
+          params.append('refine', REGION_RESTRICTION);
+        }
+
+        try {
+          const response = await authorisedFetch(`${AGGREGATES_URL}?${params.toString()}`, {
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            continue;
+          }
+
+          const payload = await response.json();
+          const records = Array.isArray(payload.results) ? payload.results : payload.records;
+          if (!Array.isArray(records) || !records.length) {
+            continue;
+          }
+
+          for (const entry of records) {
+            if (entry && field in entry) {
+              addStation(entry[field]);
+            }
+          }
+
+          if (discovered.size) {
+            break;
+          }
+        } catch (error) {
+          if (error?.code === 'unauthorized') {
+            console.warn('Station directory lookup unauthorized for field', field, error);
+            break;
+          }
+          console.warn('Station directory lookup failed for field', field, error);
+        }
+      }
+
+      if (!discovered.size) {
+        FALLBACK_STATIONS.forEach(addStation);
+      }
+
+      const resolvedStations = Array.from(discovered.values()).sort((a, b) =>
+        a.localeCompare(b, 'fr-CA', { sensitivity: 'base' })
+      );
+
+      if (resolvedStations.length) {
+        state.availableStations = resolvedStations;
+        if (state.normalizedRecords.length) {
+          updateStationOptions(state.normalizedRecords);
+        } else {
+          updateStationOptions([]);
+        }
+      }
+
+      return resolvedStations;
+    }
+
+    async function loadRecords() {
+      const params = new URLSearchParams({
+        limit: elements.limit.value || '100',
+        timezone: 'America/Toronto'
+      });
+
+      if (REGION_RESTRICTION) {
+        params.append('refine', REGION_RESTRICTION);
+      }
+
+      const url = `${API_URL}?${params.toString()}`;
+      const response = await authorisedFetch(url, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data.results)) {
+        return data.results;
+      }
+      if (Array.isArray(data.records)) {
+        return data.records.map(record => ({ ...record.fields, record_timestamp: record.record_timestamp }));
+      }
+      throw new Error('Format de données inattendu.');
+    }
+
+    function detectFields(records) {
+      const sample = records.find(rec => rec && Object.keys(rec).length);
+      if (!sample) {
+        return {};
+      }
+      const fieldNames = new Set(Object.keys(sample));
+      const findField = (candidates) => candidates.find(name => fieldNames.has(name));
+      return {
+        timestamp: findField(fieldHints.timestamp),
+        waterLevel: findField(fieldHints.waterLevel),
+        flow: findField(fieldHints.flow),
+        precipitation: findField(fieldHints.precipitation),
+        stationName: findField(fieldHints.stationName)
+      };
+    }
+
+    function normaliseStationName(value) {
+      if (value === null || value === undefined) {
+        return undefined;
+      }
+      const name = String(value).trim();
+      return name.length ? name : undefined;
+    }
+
+    function stationNamesEqual(a, b) {
+      const first = normaliseStationName(a);
+      const second = normaliseStationName(b);
+      if (!first || !second) {
+        return false;
+      }
+      return first.localeCompare(second, 'fr-CA', { sensitivity: 'base' }) === 0;
+    }
+
+    function normaliseRecord(record, fieldMap) {
+      const getValue = (fieldName) => {
+        if (!fieldName) return undefined;
+        return record[fieldName];
+      };
+
+      const timestamp = getValue(fieldMap.timestamp) ?? record.record_timestamp ?? record['@timestamp'];
+      const parsedDate = timestamp ? new Date(timestamp) : null;
+      const stationName = normaliseStationName(getValue(fieldMap.stationName)) ?? DEFAULT_STATION_NAME;
+
+      return {
+        raw: record,
+        stationName,
+        timestamp: parsedDate,
+        waterLevel: toNumber(getValue(fieldMap.waterLevel)),
+        flow: toNumber(getValue(fieldMap.flow)),
+        precipitation: toNumber(getValue(fieldMap.precipitation))
+      };
+    }
+
+    function toNumber(value) {
+      if (value === null || value === undefined || value === '') {
+        return undefined;
+      }
+      const number = Number(value);
+      return Number.isFinite(number) ? number : undefined;
+    }
+
+    function filterRecords(records) {
+      const startValue = elements.start.value ? new Date(elements.start.value) : null;
+      const endValue = elements.end.value ? new Date(elements.end.value) : null;
+      const inclusiveEnd = endValue ? new Date(endValue.getTime()) : null;
+      if (inclusiveEnd) {
+        inclusiveEnd.setDate(inclusiveEnd.getDate() + 1);
+      }
+      const stationFilter = normaliseStationName(state.selectedStation);
+
+      const filtered = records.filter(entry => {
+        if (!entry.timestamp) return false;
+        if (stationFilter && !stationNamesEqual(entry.stationName, stationFilter)) {
+          return false;
+        }
+        if (startValue && entry.timestamp < startValue) {
+          return false;
+        }
+        if (inclusiveEnd && entry.timestamp >= inclusiveEnd) {
+          return false;
+        }
+        return true;
+      });
+
+      return filtered.sort((a, b) => a.timestamp - b.timestamp);
+    }
+
+    function updateStationOptions(records) {
+      const existingStations = Array.isArray(state.availableStations) ? state.availableStations : [];
+      const stationMap = new Map();
+      const addStation = (name) => {
+        const normalised = normaliseStationName(name);
+        if (!normalised) {
+          return;
+        }
+        const key = normalised.toLocaleLowerCase('fr-CA');
+        if (!stationMap.has(key)) {
+          stationMap.set(key, normalised);
+        }
+      };
+
+      existingStations.forEach(addStation);
+      records.forEach(entry => addStation(entry.stationName));
+
+      if (!stationMap.size) {
+        FALLBACK_STATIONS.forEach(addStation);
+      }
+
+      const uniqueStations = Array.from(stationMap.values()).sort((a, b) =>
+        a.localeCompare(b, 'fr-CA', { sensitivity: 'base' })
+      );
+
+      state.availableStations = uniqueStations;
+
+      if (!uniqueStations.length) {
+        elements.stationSelect.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Aucune station disponible';
+        elements.stationSelect.appendChild(placeholder);
+        elements.stationSelect.value = '';
+        elements.stationSelect.disabled = true;
+        state.selectedStation = null;
+        return;
+      }
+
+      const previousSelection = normaliseStationName(state.selectedStation);
+      let resolvedSelection = previousSelection
+        ? uniqueStations.find(name => stationNamesEqual(name, previousSelection))
+        : null;
+
+      if (!resolvedSelection) {
+        const drummondvilleMatch = uniqueStations.find(name => /drummondville/i.test(name));
+        resolvedSelection = drummondvilleMatch || uniqueStations[0];
+      }
+
+      state.selectedStation = resolvedSelection;
+
+      elements.stationSelect.innerHTML = '';
+      uniqueStations.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        if (stationNamesEqual(name, resolvedSelection)) {
+          option.selected = true;
+        }
+        elements.stationSelect.appendChild(option);
+      });
+      elements.stationSelect.value = resolvedSelection;
+      elements.stationSelect.disabled = false;
+    }
+
+    function rebuildProcessedRecords() {
+      if (!Array.isArray(state.normalizedRecords) || !state.normalizedRecords.length) {
+        state.processedRecords = [];
+        return;
+      }
+      state.processedRecords = filterRecords(state.normalizedRecords);
+    }
+
+    function updateStatus(message, tone = 'info') {
+      elements.status.textContent = message;
+      elements.status.style.color = TONE_COLORS[tone] || TONE_COLORS.info;
+    }
+
+    function updateSummary(records) {
+      if (!records.length) {
+        elements.stationName.textContent = 'Aucune donnée';
+        elements.updateTimestamp.textContent = 'Dernière mise à jour : –';
+        elements.currentLevel.textContent = '–';
+        elements.currentFlow.textContent = '–';
+        elements.currentPrecip.textContent = '–';
+        elements.levelTrend.textContent = '–';
+        elements.levelTrend.className = 'delta flat';
+        elements.flowTrend.textContent = '–';
+        elements.flowTrend.className = 'delta flat';
+        elements.precipTrend.textContent = '–';
+        elements.precipTrend.className = 'delta flat';
+        return;
+      }
+
+      const latest = records[records.length - 1];
+      const previous = records[records.length - 2];
+      const formatNumber = (value, unit) => (typeof value === 'number' ? `${value.toFixed(2)} ${unit}` : '–');
+      const formatTimestamp = (date) => {
+        if (!(date instanceof Date) || Number.isNaN(date)) return 'Dernière mise à jour : –';
+        return `Dernière mise à jour : ${date.toLocaleString('fr-CA', {
+          hour12: false,
+          dateStyle: 'short',
+          timeStyle: 'short'
+        })}`;
+      };
+
+      elements.stationName.textContent = latest.stationName || state.selectedStation || DEFAULT_STATION_NAME;
+      elements.updateTimestamp.textContent = formatTimestamp(latest.timestamp);
+      elements.levelTrend.textContent = computeDeltaText(latest.waterLevel, previous?.waterLevel, 'm');
+      elements.levelTrend.className = `delta ${computeDeltaClass(latest.waterLevel, previous?.waterLevel)}`;
+      elements.flowTrend.textContent = computeDeltaText(latest.flow, previous?.flow, 'm³/s');
+      elements.flowTrend.className = `delta ${computeDeltaClass(latest.flow, previous?.flow)}`;
+      elements.precipTrend.textContent = computeDeltaText(latest.precipitation, previous?.precipitation, 'mm');
+      elements.precipTrend.className = `delta ${computeDeltaClass(latest.precipitation, previous?.precipitation)}`;
+      elements.currentLevel.textContent = formatNumber(latest.waterLevel, 'm');
+      elements.currentFlow.textContent = formatNumber(latest.flow, 'm³/s');
+      elements.currentPrecip.textContent = formatNumber(latest.precipitation, 'mm');
+    }
+
+    function computeDeltaText(current, previous, unit) {
+      if (typeof current !== 'number' || typeof previous !== 'number') {
+        return 'Variation non disponible';
+      }
+      const delta = current - previous;
+      if (Math.abs(delta) < 0.005) {
+        return `Stable (${delta.toFixed(2)} ${unit})`;
+      }
+      const direction = delta > 0 ? 'Hausse' : 'Baisse';
+      return `${direction} de ${delta.toFixed(2)} ${unit}`;
+    }
+
+    function computeDeltaClass(current, previous) {
+      if (typeof current !== 'number' || typeof previous !== 'number') {
+        return 'flat';
+      }
+      const delta = current - previous;
+      if (Math.abs(delta) < 0.005) {
+        return 'flat';
+      }
+      return delta > 0 ? 'up' : 'down';
+    }
+
+    function updateTable(records) {
+      elements.tableBody.innerHTML = '';
+      if (!records.length) {
+        const row = document.createElement('tr');
+        row.className = 'empty-state';
+        const cell = document.createElement('td');
+        cell.colSpan = 4;
+        cell.textContent = 'Aucune donnée disponible pour la station ou la période choisie.';
+        row.appendChild(cell);
+        elements.tableBody.appendChild(row);
+        return;
+      }
+
+      const formatter = new Intl.DateTimeFormat('fr-CA', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+        hour12: false
+      });
+
+      const template = elements.rowTemplate.content;
+
+      records.forEach(entry => {
+        const clone = template.cloneNode(true);
+        clone.querySelector('.date').textContent = entry.timestamp ? formatter.format(entry.timestamp) : '–';
+        clone.querySelector('.level').textContent = typeof entry.waterLevel === 'number' ? entry.waterLevel.toFixed(2) : '–';
+        clone.querySelector('.flow').textContent = typeof entry.flow === 'number' ? entry.flow.toFixed(2) : '–';
+        clone.querySelector('.rain').textContent = typeof entry.precipitation === 'number' ? entry.precipitation.toFixed(2) : '–';
+        elements.tableBody.appendChild(clone);
+      });
+    }
+
+    function updateChart(records) {
+      if (!state.chart) {
+        state.chart = new Chart(elements.chartCanvas, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: '',
+                data: [],
+                tension: 0.35,
+                fill: true,
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                type: 'time',
+                adapters: {
+                  date: {
+                    locale: 'fr-CA'
+                  }
+                },
+                ticks: {
+                  color: 'rgba(226, 232, 240, 0.65)'
+                },
+                grid: {
+                  color: 'rgba(148, 163, 184, 0.15)'
+                }
+              },
+              y: {
+                ticks: {
+                  color: 'rgba(226, 232, 240, 0.65)'
+                },
+                grid: {
+                  color: 'rgba(148, 163, 184, 0.15)'
+                }
+              }
+            },
+            plugins: {
+              legend: {
+                labels: {
+                  color: 'rgba(226, 232, 240, 0.8)'
+                }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                borderColor: 'rgba(56, 189, 248, 0.35)',
+                borderWidth: 1,
+                callbacks: {
+                  label: context => `${context.dataset.label}: ${Number(context.parsed.y).toFixed(2)}`
+                }
+              }
+            }
+          }
+        });
+      }
+
+      const datasetKey = elements.series.value;
+      const labelMap = {
+        waterLevel: "Niveau d'eau (m)",
+        flow: 'Débit (m³/s)',
+        precipitation: 'Précipitations (mm)'
+      };
+
+      const palette = getSeriesPalette(datasetKey);
+      const dataPoints = records
+        .filter(entry => typeof entry[datasetKey] === 'number')
+        .map(entry => ({ x: entry.timestamp, y: entry[datasetKey] }));
+
+      const dataset = state.chart.data.datasets[0];
+      state.chart.data.labels = dataPoints.map(point => point.x);
+      dataset.data = dataPoints;
+      dataset.label = labelMap[datasetKey];
+      dataset.borderColor = palette.border;
+      dataset.backgroundColor = palette.background;
+      dataset.pointBackgroundColor = palette.border;
+      dataset.pointBorderColor = palette.border;
+      state.chart.update();
+    }
+
+    function getSeriesPalette(key) {
+      switch (key) {
+        case 'flow':
+          return { border: 'rgba(52, 211, 153, 0.95)', background: 'rgba(52, 211, 153, 0.18)' };
+        case 'precipitation':
+          return { border: 'rgba(250, 204, 21, 0.95)', background: 'rgba(250, 204, 21, 0.18)' };
+        case 'waterLevel':
+        default:
+          return { border: 'rgba(56, 189, 248, 0.95)', background: 'rgba(56, 189, 248, 0.18)' };
+      }
+    }
+
+    async function refreshDashboard() {
+      elements.refreshButton.disabled = true;
+      elements.stationSelect.disabled = true;
+      updateStatus('Récupération des données en cours…');
+      state.statusLock = false;
+
+      try {
+        const records = await loadRecords();
+        state.usedFallback = false;
+        state.rawRecords = records.map(record =>
+          record && record.fields
+            ? { ...record.fields, record_timestamp: record.record_timestamp }
+            : record
+        );
+        state.fieldMap = detectFields(state.rawRecords);
+        state.normalizedRecords = state.rawRecords.map(record => normaliseRecord(record, state.fieldMap));
+        updateStationOptions(state.normalizedRecords);
+        rebuildProcessedRecords();
+        state.lastFetch = new Date();
+        updateStatus('Données officielles synchronisées avec succès.', 'success');
+      } catch (error) {
+        console.error(error);
+        const hasCredentials = Boolean(
+          state.auth.accessToken ||
+            (state.auth.clientId && state.auth.clientSecret)
+        );
+        if (error?.code === 'unauthorized' && hasCredentials) {
+          state.usedFallback = false;
+          state.statusLock = true;
+          state.lastFetch = new Date();
+          updateStatus(
+            "L'API Hydro-Québec a refusé l'accès. Vérifiez le jeton OAuth2 dans « Connexion à l'API ».",
+            'danger'
+          );
+        } else {
+          state.usedFallback = true;
+          state.fieldMap = {
+            timestamp: 'timestamp',
+            waterLevel: 'waterLevel',
+            flow: 'flow',
+            precipitation: 'precipitation',
+            stationName: 'stationName'
+          };
+          state.rawRecords = FALLBACK_DATA.map(entry => ({ ...entry }));
+          state.normalizedRecords = state.rawRecords.map(record => normaliseRecord(record, state.fieldMap));
+          updateStationOptions(state.normalizedRecords);
+          rebuildProcessedRecords();
+          state.lastFetch = new Date();
+          updateStatus("Impossible d'atteindre l'API d'Hydro-Québec, affichage d'un jeu de données de démonstration.", 'warning');
+        }
+      } finally {
+        renderDashboard();
+        elements.refreshButton.disabled = false;
+        elements.stationSelect.disabled = !elements.stationSelect.options.length;
+      }
+    }
+
+    function renderDashboard() {
+      const statusLocked = state.statusLock;
+      updateSummary(state.processedRecords);
+      updateTable(state.processedRecords);
+      updateChart(state.processedRecords);
+      if (state.usedFallback) {
+        elements.updateTimestamp.textContent += ' (mode démo)';
+      }
+      if (!state.normalizedRecords.length) {
+        const emptyWarning = "Aucun relevé n'a été reçu pour la requête actuelle.";
+        if (!statusLocked) {
+          updateStatus(state.usedFallback ? `Mode démo – ${emptyWarning}` : emptyWarning, 'warning');
+        }
+        state.statusLock = false;
+        return;
+      }
+      if (!state.processedRecords.length && state.normalizedRecords.length) {
+        const filterWarning = 'Aucune observation disponible pour la station ou la période sélectionnée.';
+        if (!statusLocked) {
+          updateStatus(state.usedFallback ? `Mode démo – ${filterWarning}` : filterWarning, 'warning');
+        }
+      }
+      state.statusLock = false;
+    }
+
+    function configureAutoRefresh() {
+      if (elements.autoRefresh.checked) {
+        if (!state.autoRefreshHandle) {
+          state.autoRefreshHandle = setInterval(refreshDashboard, AUTO_REFRESH_INTERVAL);
+        }
+      } else if (state.autoRefreshHandle) {
+        clearInterval(state.autoRefreshHandle);
+        state.autoRefreshHandle = null;
+      }
+    }
+
+    loadPersistedAuth();
+    syncAuthInputs();
+    updateTokenStatus();
+
+    if (elements.saveCredentials) {
+      elements.saveCredentials.addEventListener('click', () => {
+        state.auth.clientId = (elements.clientId?.value || '').trim();
+        state.auth.clientSecret = (elements.clientSecret?.value || '').trim();
+        persistAuthState();
+        syncAuthInputs();
+        updateTokenStatus();
+        setTokenStatusOverride('Identifiants OAuth2 enregistrés localement.', 'success', true);
+      });
+    }
+
+    if (elements.saveToken) {
+      elements.saveToken.addEventListener('click', () => {
+        const token = (elements.accessToken?.value || '').trim();
+        state.auth.accessToken = token;
+        state.auth.tokenType = 'Bearer';
+        state.auth.tokenExpiresAt = null;
+        persistAuthState();
+        syncAuthInputs();
+        updateTokenStatus();
+        const tone = token ? 'success' : 'warning';
+        const message = token
+          ? 'Jeton OAuth2 enregistré localement.'
+          : 'Jeton supprimé. L’API refusera les requêtes protégées.';
+        setTokenStatusOverride(message, tone, true);
+      });
+    }
+
+    if (elements.requestToken) {
+      elements.requestToken.addEventListener('click', async () => {
+        const clientId = (elements.clientId?.value || '').trim();
+        const clientSecret = (elements.clientSecret?.value || '').trim();
+        if (!clientId || !clientSecret) {
+          setTokenStatusOverride('Indiquez un client ID et un secret avant de demander un jeton.', 'warning', true);
+          return;
+        }
+        state.auth.clientId = clientId;
+        state.auth.clientSecret = clientSecret;
+        persistAuthState();
+        syncAuthInputs();
+        updateTokenStatus();
+        elements.requestToken.disabled = true;
+        try {
+          await tryRefreshToken(true);
+        } finally {
+          elements.requestToken.disabled = false;
+        }
+      });
+    }
+
+    if (elements.clearCredentials) {
+      elements.clearCredentials.addEventListener('click', () => {
+        state.auth.clientId = '';
+        state.auth.clientSecret = '';
+        state.auth.accessToken = '';
+        state.auth.tokenExpiresAt = null;
+        state.auth.tokenType = 'Bearer';
+        persistAuthState();
+        syncAuthInputs();
+        updateTokenStatus();
+        setTokenStatusOverride('Configuration OAuth supprimée du navigateur.', 'warning', true);
+      });
+    }
+
+    elements.form.addEventListener('submit', event => {
+      event.preventDefault();
+      refreshDashboard();
+    });
+
+    elements.stationSelect.addEventListener('change', event => {
+      state.selectedStation = normaliseStationName(event.target.value) || null;
+      rebuildProcessedRecords();
+      renderDashboard();
+    });
+
+    elements.series.addEventListener('change', () => {
+      updateChart(state.processedRecords);
+    });
+
+    elements.start.addEventListener('change', () => {
+      rebuildProcessedRecords();
+      renderDashboard();
+    });
+
+    elements.end.addEventListener('change', () => {
+      rebuildProcessedRecords();
+      renderDashboard();
+    });
+
+    elements.autoRefresh.addEventListener('change', configureAutoRefresh);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && state.autoRefreshHandle) {
+        clearInterval(state.autoRefreshHandle);
+        state.autoRefreshHandle = null;
+      } else if (!document.hidden && elements.autoRefresh.checked) {
+        configureAutoRefresh();
+      }
+    });
+
+    (async () => {
+      try {
+        await ensureValidTokenFreshness();
+      } catch (error) {
+        console.warn('Impossible de préparer le jeton OAuth2 automatiquement.', error);
+      }
+
+      try {
+        await loadStationDirectory();
+      } catch (error) {
+        console.warn('Impossible de récupérer le répertoire des stations', error);
+      }
+
+      await refreshDashboard();
+    })();
+  </script>
+</body>
+</html>

@@ -1,66 +1,73 @@
 # Hydro-Québec Live Dam Data Dashboard (SIUCQ Project)
 
-This project is an experimental **live data web page** designed to display **Hydro-Québec open data** about dam conditions — specifically **water discharge (flow rate)** and **water levels** in real time.  
-The purpose is to support **SIUCQ (Service d’Intervention d’Urgence Civil du Québec)** teams with rapid access to hydrological data for **Centre-du-Québec**, including the **Drummondville** area.
+This project is an experimental **live data web page** designed to display **Hydro-Québec open data** about **dam discharge (flow rate)** and **water level** in real time.  
+It’s being developed to support the **SIUCQ (Service d’Intervention d’Urgence Civil du Québec)** teams by providing quick access to **live hydrological data** for **Centre-du-Québec**, especially around **Drummondville**.
 
 ---
 
 ## Summary
 
-This project attempts to:
-- Connect to **Hydro-Québec’s open data API**.  
+The goal is to:
+- Connect to Hydro-Québec’s **open data API**.  
 - Retrieve live measurements such as:
-  - **Water discharge (débit d’eau)**
-  - **Water level (niveau d’eau)**
-  - **Station metadata** (location, name, river, etc.)
-- Apply a **default region filter** for **Centre-du-Québec** so that Drummondville stations appear first.  
-- Display all this information on a **public, auto-updating static web page** for emergency monitoring.
+  - **Water discharge (débit d’eau)**  
+  - **Water level (niveau d’eau)**  
+  - **Station information** (name, location, river, etc.)
+- Add a **default Centre-du-Québec region filter** shared by both station discovery and record retrieval.  
+- Request Hydro-Québec aggregates and records refined by region so that **Drummondville observations are prioritized**.  
+- Display all this information on a **live, auto-updating static web page**.
 
 ---
 
-## Technical Notes
+## Technical Overview
 
-- The app uses **client-side JavaScript (fetch API)** to request Hydro-Québec datasets.  
-- API endpoints:  
+- Client-side JavaScript (no backend yet).  
+- Data source:  
   - [`donnees-hydrometeorologiques`](https://donnees.hydroquebec.com/explore/dataset/donnees-hydrometeorologiques/api/)  
-- Intended deployment: **Vercel** (static hosting with live API calls).  
+- Hosting target: **Vercel** (static hosting).  
+
+The plan is to fetch and display live JSON data directly from Hydro-Québec’s API, with automatic refresh and regional prioritization.
 
 ---
 
-## Challenges
+## Current Status
 
-I’m currently working through:
-- Fetching and parsing Hydro-Québec’s JSON data correctly.  
-- Managing rate limits and API query parameters.  
-- Keeping the data display **live and automatically refreshed** without needing a backend.  
+⚠️ I **really need help** getting this to work correctly.
 
-The goal is to show **real-time dam and river status** for use by emergency response teams during critical events such as **flooding** or **ice break-up**.
+I’m currently facing issues with:
+- Receiving and parsing the API responses.  
+- Applying proper filters (region, station names).  
+- Displaying and refreshing the live values on the web page.  
+
+Right now, the web page is static — it doesn’t yet show live data.
+
+If you have experience with **JavaScript fetch APIs**, **open data integration**, or **client-side live dashboards**, any guidance or contribution would be incredibly appreciated.
 
 ---
 
 ## Testing
 
-- Not yet fully functional — only static test pages.  
-- No backend processing (client-only).  
-- Next phase: integrate real API calls and dynamic updates on the page.
+- **Not yet functional** (static prototype).  
+- No backend or live refresh currently.  
+- Next steps involve connecting the fetch function and auto-refresh logic.
 
 ---
 
-## Next Steps
+## Planned Features
 
-- Implement region-based filtering (`Centre-du-Québec`).  
-- Fetch live discharge and level data from all available Hydro-Québec stations.  
-- Highlight Drummondville and nearby sites automatically.  
-- Add chart visualizations for live readings (flow rate & level).  
-- Deploy and test through Vercel hosting.
+- Live data refresh every few minutes.  
+- Regional filters for **Centre-du-Québec**.  
+- Graphs and tables showing real-time discharge and water levels.  
+- Highlight Drummondville and nearby stations automatically.  
+- Future integration with SIUCQ emergency dashboards.
 
 ---
 
-### Credits
+## Credits
 
 Developed by **P-A L.**  
-Project: **SIUCQ Drummondville – Live Hydro Monitoring Dashboard**  
-For civil protection and emergency response readiness.
+Volunteer and Project Manager – **SIUCQ Drummondville**  
+Focused on improving real-time situational awareness for emergency response.
 
 ---
 
@@ -68,3 +75,4 @@ For civil protection and emergency response readiness.
 
 Hydro-Québec Open Data Portal  
 [https://donnees.hydroquebec.com](https://donnees.hydroquebec.com)
+

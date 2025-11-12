@@ -23,7 +23,6 @@ This project attempts to:
 - The app uses **client-side JavaScript (fetch API)** to request Hydro-Québec datasets.  
 - API endpoints:  
   - [`donnees-hydrometeorologiques`](https://donnees.hydroquebec.com/explore/dataset/donnees-hydrometeorologiques/api/)  
-  - [`evenements-pointe`](https://donnees.hydroquebec.com/explore/dataset/evenements-pointe/api/) (for extra data when available)
 - Intended deployment: **Vercel** (static hosting with live API calls).  
 
 ---

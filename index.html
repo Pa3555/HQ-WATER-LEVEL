@@ -520,8 +520,8 @@
   </template>
 
   <script>
-    const API_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometriques/records';
-    const AGGREGATES_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometriques/records';
+    const API_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometeorologiques/records';
+    const AGGREGATES_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometeorologiques/records';
     const FETCH_TIMEOUT = 15000;
     const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000;
     const DEFAULT_STATION_NAME = 'Drummondville';
@@ -583,11 +583,13 @@
     const FALLBACK_STATIONS = ['Drummondville'];
 
     const fieldHints = {
-      timestamp: ['split_date', 'date_observation', 'date_heure', 'date_releve', 'datetime', 'time', 'timestamp', 'date'],
+      timestamp: ['date', 'split_date', 'date_observation', 'date_heure', 'date_releve', 'datetime', 'time', 'timestamp'],
       waterLevel: ['niveau_eau_m', 'niveau_eau', 'niveau', 'niveau_m', 'height_m', 'niveau_deau_m'],
       flow: ['debit_m3s', 'debit', 'flow', 'debit_m3_s'],
       precipitation: ['precipitations_24_h_mm', 'precipitation', 'pluie_mm', 'pluie', 'precipitation_mm'],
-      stationName: ['nom', 'nom_station', 'nom_de_station', 'nom_de_la_station', 'station', 'station_name', 'lieu', 'poste', 'post', 'emplacement']
+      stationName: ['nom', 'nom_station', 'nom_de_station', 'nom_de_la_station', 'station', 'station_name', 'lieu', 'poste', 'post', 'emplacement'],
+      value: ['valeur', 'split_value'],
+      unit: ['composition_depil_nom_unite_mesure', 'depil_json_nom_unite_mesure']
     };
 
     const UNIT_TO_METRIC = {
@@ -595,7 +597,8 @@
       'm.': 'waterLevel',
       'm3/s': 'flow',
       'm³/s': 'flow',
-      'mm': 'precipitation'
+      'mm': 'precipitation',
+      'mm/h': 'precipitation'
     };
 
     const state = {
@@ -1017,7 +1020,7 @@
       const params = new URLSearchParams({
         limit: elements.limit.value || '100',
         timezone: 'America/Toronto',
-        order_by: 'split_date DESC'
+        order_by: 'date DESC'
       });
 
       let url = `${API_URL}?${params.toString()}`;
@@ -1105,31 +1108,50 @@
       return Number.isFinite(number) ? number : undefined;
     }
 
+    function parseDateString(raw) {
+      if (!raw) return null;
+      let s = String(raw).replace(/\//g, '-').replace(' ', 'T');
+      // Handle trailing digits after seconds: "07:00:002" → "07:00:00.2"
+      s = s.replace(/(T\d{2}:\d{2}:\d{2})(\d+)$/, '$1.$2');
+      const d = new Date(s);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
     function isLongFormat(records) {
       const sample = records.find(r => r && Object.keys(r).length);
-      return sample ? 'split_value' in sample : false;
+      if (!sample) return false;
+      const keys = Object.keys(sample);
+      return fieldHints.value.some(f => keys.includes(f)) &&
+             fieldHints.unit.some(f => keys.includes(f));
     }
 
     function pivotRecords(rawRecords) {
+      if (!rawRecords.length) return [];
+      const keys = Object.keys(rawRecords[0]);
+      const find = (candidates) => candidates.find(c => keys.includes(c));
+      const timestampField = find(fieldHints.timestamp);
+      const valueField     = find(fieldHints.value);
+      const unitField      = find(fieldHints.unit);
+      const stationField   = find(fieldHints.stationName);
+
       const groups = new Map();
       for (const record of rawRecords) {
-        const dateKey = record.split_date || '';
-        const stationKey = record.nom || record.nom_station || '';
+        const dateKey    = record[timestampField] || '';
+        const stationKey = record[stationField]   || '';
         const key = `${stationKey}||${dateKey}`;
         if (!groups.has(key)) {
-          const normalizedDate = dateKey ? dateKey.replace(/\//g, '-') : '';
           groups.set(key, {
             stationName: stationKey || DEFAULT_STATION_NAME,
-            timestamp: normalizedDate ? new Date(normalizedDate) : null,
-            waterLevel: undefined,
-            flow: undefined,
+            timestamp:   parseDateString(dateKey),
+            waterLevel:  undefined,
+            flow:        undefined,
             precipitation: undefined,
             raw: record
           });
         }
-        const group = groups.get(key);
-        const unit = (record.depil_json_nom_unite_mesure || '').trim().toLowerCase();
-        const value = toNumber(record.split_value);
+        const group  = groups.get(key);
+        const unit   = (record[unitField] || '').trim().toLowerCase();
+        const value  = toNumber(record[valueField]);
         const metric = UNIT_TO_METRIC[unit];
         if (metric !== undefined && value !== undefined) {
           group[metric] = value;

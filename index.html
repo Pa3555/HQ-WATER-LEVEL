@@ -187,37 +187,6 @@
       gap: 1.25rem;
     }
 
-    .auth-panel p {
-      margin: 0 0 1rem;
-      line-height: 1.5;
-      color: rgba(203, 213, 225, 0.75);
-    }
-
-    .auth-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 1rem;
-    }
-
-    .auth-panel textarea {
-      resize: vertical;
-      min-height: 110px;
-      font-family: inherit;
-      line-height: 1.45;
-      width: 100%;
-    }
-
-    .auth-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      align-items: center;
-    }
-
-    .token-status {
-      min-height: 1.4rem;
-    }
-
     .card {
       background: rgba(15, 23, 42, 0.65);
       border-radius: 18px;
@@ -418,40 +387,6 @@
       </form>
     </section>
 
-    <section class="panel auth-panel" aria-labelledby="auth-title">
-      <h2 id="auth-title">Connexion à l'API</h2>
-      <p>
-        Hydro-Québec requiert un jeton OAuth2 pour accéder aux données en temps réel. Renseignez vos
-        identifiants d'application ou collez directement un jeton valide. Les informations sont conservées
-        uniquement dans votre navigateur.
-        <a href="https://help.opendatasoft.com/apis/ods-explore-v2/#section/Authentication/Using-OAuth2-authorization" target="_blank" rel="noopener">
-          En savoir plus</a>.
-      </p>
-      <div class="auth-grid">
-        <label>
-          Client ID
-          <input type="text" id="client-id" autocomplete="off" spellcheck="false" />
-        </label>
-        <label>
-          Client secret
-          <input type="password" id="client-secret" autocomplete="off" spellcheck="false" />
-        </label>
-      </div>
-      <div class="auth-actions">
-        <button type="button" id="save-credentials">Enregistrer les identifiants</button>
-        <button type="button" id="request-token">Obtenir un jeton OAuth2</button>
-        <button type="button" id="clear-credentials" class="secondary">Effacer la configuration</button>
-      </div>
-      <label>
-        Jeton d'accès
-        <textarea id="access-token" spellcheck="false" autocomplete="off"></textarea>
-      </label>
-      <div class="auth-actions">
-        <button type="button" id="save-token">Enregistrer le jeton</button>
-        <span class="status token-status" id="token-status"></span>
-      </div>
-    </section>
-
     <section class="panel" aria-labelledby="summary-title">
       <h2 id="summary-title">Résumé opérationnel</h2>
       <div class="summary-cards" id="summary-cards">
@@ -527,8 +462,6 @@
     const DEFAULT_STATION_NAME = 'Drummondville';
     const DEFAULT_REGION = 'Centre-du-Québec';
     const REGION_RESTRICTION = `regionqc:${DEFAULT_REGION}`;
-    const OAUTH_TOKEN_URL = 'https://donnees.hydroquebec.com/api/oauth2/token';
-    const AUTH_STORAGE_KEY = 'hq-water-level::oauth';
     const TONE_COLORS = {
       info: 'rgba(148, 163, 184, 0.85)',
       success: 'var(--success)',
@@ -612,16 +545,6 @@
       lastFetch: null,
       usedFallback: false,
       autoRefreshHandle: null,
-      auth: {
-        clientId: '',
-        clientSecret: '',
-        accessToken: '',
-        tokenExpiresAt: null,
-        tokenType: 'Bearer',
-        refreshPromise: null,
-        tokenStatusOverride: null,
-        tokenStatusTimeout: null
-      },
       statusLock: false
     };
 
@@ -645,15 +568,7 @@
       precipTrend: document.getElementById('precip-trend'),
       tableBody: document.getElementById('table-body'),
       rowTemplate: document.getElementById('row-template'),
-      chartCanvas: document.getElementById('history-chart'),
-      clientId: document.getElementById('client-id'),
-      clientSecret: document.getElementById('client-secret'),
-      accessToken: document.getElementById('access-token'),
-      saveCredentials: document.getElementById('save-credentials'),
-      requestToken: document.getElementById('request-token'),
-      clearCredentials: document.getElementById('clear-credentials'),
-      saveToken: document.getElementById('save-token'),
-      tokenStatus: document.getElementById('token-status')
+      chartCanvas: document.getElementById('history-chart')
     };
 
     async function fetchWithTimeout(resource, options = {}) {
@@ -667,286 +582,17 @@
       }
     }
 
-    function getStorage() {
-      try {
-        return window.localStorage;
-      } catch (error) {
-        return null;
-      }
-    }
-
-    function loadPersistedAuth() {
-      const storage = getStorage();
-      if (!storage) return;
-      try {
-        const raw = storage.getItem(AUTH_STORAGE_KEY);
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object') return;
-        state.auth.clientId = parsed.clientId || '';
-        state.auth.clientSecret = parsed.clientSecret || '';
-        state.auth.accessToken = parsed.accessToken || '';
-        state.auth.tokenType = parsed.tokenType || 'Bearer';
-        state.auth.tokenExpiresAt = typeof parsed.tokenExpiresAt === 'number' ? parsed.tokenExpiresAt : null;
-      } catch (error) {
-        console.warn('Impossible de charger la configuration OAuth locale.', error);
-      }
-    }
-
-    function persistAuthState() {
-      const storage = getStorage();
-      if (!storage) return;
-      try {
-        const payload = {
-          clientId: state.auth.clientId || '',
-          clientSecret: state.auth.clientSecret || '',
-          accessToken: state.auth.accessToken || '',
-          tokenType: state.auth.tokenType || 'Bearer',
-          tokenExpiresAt:
-            typeof state.auth.tokenExpiresAt === 'number' && Number.isFinite(state.auth.tokenExpiresAt)
-              ? state.auth.tokenExpiresAt
-              : null
-        };
-        storage.setItem(AUTH_STORAGE_KEY, JSON.stringify(payload));
-      } catch (error) {
-        console.warn('Impossible de sauvegarder la configuration OAuth locale.', error);
-      }
-    }
-
-    function syncAuthInputs() {
-      if (elements.clientId) {
-        elements.clientId.value = state.auth.clientId || '';
-      }
-      if (elements.clientSecret) {
-        elements.clientSecret.value = state.auth.clientSecret || '';
-      }
-      if (elements.accessToken) {
-        elements.accessToken.value = state.auth.accessToken || '';
-      }
-    }
-
-    function clearTokenStatusTimeout() {
-      if (state.auth.tokenStatusTimeout) {
-        clearTimeout(state.auth.tokenStatusTimeout);
-        state.auth.tokenStatusTimeout = null;
-      }
-    }
-
-    function applyTokenStatus(message, tone = 'info') {
-      if (!elements.tokenStatus) return;
-      elements.tokenStatus.textContent = message;
-      elements.tokenStatus.style.color = TONE_COLORS[tone] || TONE_COLORS.info;
-    }
-
-    function setTokenStatusOverride(message, tone = 'info', autoClear = false) {
-      clearTokenStatusTimeout();
-      state.auth.tokenStatusOverride = { message, tone };
-      applyTokenStatus(message, tone);
-      if (autoClear) {
-        state.auth.tokenStatusTimeout = window.setTimeout(() => {
-          state.auth.tokenStatusOverride = null;
-          state.auth.tokenStatusTimeout = null;
-          updateTokenStatus();
-        }, 4000);
-      }
-    }
-
-    function updateTokenStatus() {
-      if (!elements.tokenStatus) return;
-      if (state.auth.tokenStatusOverride) {
-        applyTokenStatus(
-          state.auth.tokenStatusOverride.message,
-          state.auth.tokenStatusOverride.tone
-        );
-        return;
-      }
-
-      if (!state.auth.accessToken) {
-        applyTokenStatus(
-          "Aucun jeton OAuth2 enregistré. Fournissez un jeton pour interroger l'API protégée.",
-          'warning'
-        );
-        return;
-      }
-
-      if (typeof state.auth.tokenExpiresAt === 'number' && Number.isFinite(state.auth.tokenExpiresAt)) {
-        const diff = state.auth.tokenExpiresAt - Date.now();
-        if (diff <= 0) {
-          applyTokenStatus('Jeton expiré. Renouvelez-le pour continuer à recevoir les données.', 'danger');
-          return;
-        }
-        const totalMinutes = Math.floor(diff / 60000);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = Math.max(totalMinutes % 60, diff < 60000 ? 1 : 0);
-        let descriptor = '';
-        if (hours >= 1) {
-          descriptor = minutes ? `${hours} h ${minutes} min` : `${hours} h`;
-        } else {
-          const safeMinutes = Math.max(totalMinutes, 1);
-          descriptor = `${safeMinutes} min`;
-        }
-        const tone = diff < 5 * 60 * 1000 ? 'warning' : 'success';
-        applyTokenStatus(`Jeton actif – expiration dans ${descriptor}.`, tone);
-        return;
-      }
-
-      applyTokenStatus("Jeton OAuth2 enregistré. La date d'expiration est gérée par Hydro-Québec.", 'success');
-    }
-
-    function applyTokenResponse(payload) {
-      if (!payload || !payload.access_token) {
-        throw new Error("Réponse OAuth2 invalide : aucun jeton n'a été retourné.");
-      }
-      state.auth.accessToken = payload.access_token;
-      state.auth.tokenType = payload.token_type || 'Bearer';
-      if (typeof payload.expires_in === 'number' && Number.isFinite(payload.expires_in)) {
-        state.auth.tokenExpiresAt = Date.now() + payload.expires_in * 1000;
-      } else {
-        state.auth.tokenExpiresAt = null;
-      }
-      persistAuthState();
-      syncAuthInputs();
-    }
-
-    async function requestAccessToken(clientId, clientSecret) {
-      if (!clientId || !clientSecret) {
-        throw new Error('Client ID et secret requis pour obtenir un jeton OAuth2.');
-      }
-      const body = new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: clientId,
-        client_secret: clientSecret
-      });
-      const response = await fetchWithTimeout(OAUTH_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Accept: 'application/json'
-        },
-        body: body.toString()
-      });
-      if (!response.ok) {
-        let details = '';
-        try {
-          const errorPayload = await response.json();
-          details = errorPayload.error_description || errorPayload.error || '';
-        } catch (parseError) {
-          details = '';
-        }
-        const reason = details ? ` – ${details}` : '';
-        throw new Error(`Impossible d'obtenir un jeton OAuth2 (HTTP ${response.status})${reason}`);
-      }
-      return response.json();
-    }
-
-    async function tryRefreshToken(showFeedback = false) {
-      if (!state.auth.clientId || !state.auth.clientSecret) {
-        return false;
-      }
-
-      if (state.auth.refreshPromise) {
-        try {
-          await state.auth.refreshPromise;
-          return Boolean(state.auth.accessToken);
-        } catch (error) {
-          return false;
-        }
-      }
-
-      if (showFeedback) {
-        setTokenStatusOverride('Renouvellement du jeton OAuth2…', 'info');
-      }
-
-      const refreshPromise = (async () => {
-        try {
-          const payload = await requestAccessToken(state.auth.clientId, state.auth.clientSecret);
-          applyTokenResponse(payload);
-          updateTokenStatus();
-          if (showFeedback) {
-            setTokenStatusOverride('Nouveau jeton OAuth2 reçu.', 'success', true);
-          }
-          return true;
-        } catch (error) {
-          console.error('Échec du renouvellement OAuth2', error);
-          const message =
-            error?.message ||
-            "Impossible d'obtenir un jeton OAuth2. Vérifiez les identifiants client fournis.";
-          setTokenStatusOverride(message, 'danger');
-          throw error;
-        }
-      })();
-
-      state.auth.refreshPromise = refreshPromise;
-
-      try {
-        return await refreshPromise;
-      } catch (error) {
-        return false;
-      } finally {
-        state.auth.refreshPromise = null;
-      }
-    }
-
-    async function ensureValidTokenFreshness() {
-      if (state.auth.accessToken) {
-        if (typeof state.auth.tokenExpiresAt === 'number' && Number.isFinite(state.auth.tokenExpiresAt)) {
-          const margin = 2 * 60 * 1000;
-          if (Date.now() >= state.auth.tokenExpiresAt - margin) {
-            await tryRefreshToken(false);
-          }
-        }
-        return;
-      }
-
-      if (state.auth.clientId && state.auth.clientSecret) {
-        await tryRefreshToken(false);
-      }
-    }
-
-    async function authorisedFetch(resource, options = {}, meta = {}) {
-      await ensureValidTokenFreshness();
-
+    async function apiFetch(resource, options = {}) {
       const headers = new Headers(options.headers || {});
       if (!headers.has('Accept')) {
         headers.set('Accept', 'application/json');
       }
-
-      if (state.auth.accessToken) {
-        headers.set('Authorization', `${state.auth.tokenType || 'Bearer'} ${state.auth.accessToken}`);
-      }
-
       const response = await fetchWithTimeout(resource, { ...options, headers });
-
-      if ((response.status === 401 || response.status === 403) && meta.retry !== false) {
-        const refreshed = await tryRefreshToken(false);
-        if (refreshed) {
-          return authorisedFetch(resource, options, { retry: false });
-        }
+      if (!response.ok) {
+        const error = new Error(`Erreur API ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
-
-      if (response.status === 401 || response.status === 403) {
-        const hasCredentials = Boolean(
-          state.auth.accessToken ||
-            (state.auth.clientId && state.auth.clientSecret)
-        );
-
-        if (hasCredentials) {
-          const message =
-            response.status === 401
-              ? "Jeton OAuth2 invalide ou expiré. Mettez-le à jour dans la section « Connexion à l'API »."
-              : "Accès refusé par l'API Hydro-Québec pour cette requête.";
-          setTokenStatusOverride(message, 'danger');
-          const error = new Error(message);
-          error.code = 'unauthorized';
-          error.status = response.status;
-          throw error;
-        }
-
-        const genericError = new Error("Requête non autorisée par l'API Hydro-Québec.");
-        genericError.status = response.status;
-        throw genericError;
-      }
-
       return response;
     }
 
@@ -975,25 +621,18 @@
       const stationUrl = `${AGGREGATES_URL}?${params.toString()}${REGION_RESTRICTION ? `&refine=${buildRefineParam(REGION_RESTRICTION)}` : ''}`;
 
       try {
-        const response = await authorisedFetch(stationUrl, {
+        const response = await apiFetch(stationUrl, {
           headers: { 'Accept': 'application/json' }
         });
-
-        if (response.ok) {
-          const payload = await response.json();
-          const records = Array.isArray(payload.results) ? payload.results : (payload.records || []);
-          for (const entry of records) {
-            if (entry && stationField in entry) {
-              addStation(entry[stationField]);
-            }
+        const payload = await response.json();
+        const records = Array.isArray(payload.results) ? payload.results : (payload.records || []);
+        for (const entry of records) {
+          if (entry && stationField in entry) {
+            addStation(entry[stationField]);
           }
         }
       } catch (error) {
-        if (error?.code === 'unauthorized') {
-          console.warn('Station directory lookup unauthorized', error);
-        } else {
-          console.warn('Station directory lookup failed', error);
-        }
+        console.warn('Station directory lookup failed', error);
       }
 
       if (!discovered.size) {
@@ -1035,16 +674,9 @@
       if (REGION_RESTRICTION) {
         url += `&refine=${buildRefineParam(REGION_RESTRICTION)}`;
       }
-      const response = await authorisedFetch(url, {
-        headers: {
-          'Accept': 'application/json'
-        }
+      const response = await apiFetch(url, {
+        headers: { 'Accept': 'application/json' }
       });
-
-      if (!response.ok) {
-        throw new Error(`Erreur ${response.status}`);
-      }
-
       const data = await response.json();
       if (Array.isArray(data.results)) {
         return data.results;
@@ -1492,19 +1124,7 @@
         updateStatus('Données officielles synchronisées avec succès.', 'success');
       } catch (error) {
         console.error(error);
-        const hasCredentials = Boolean(
-          state.auth.accessToken ||
-            (state.auth.clientId && state.auth.clientSecret)
-        );
-        if (error?.code === 'unauthorized' && hasCredentials) {
-          state.usedFallback = false;
-          state.statusLock = true;
-          state.lastFetch = new Date();
-          updateStatus(
-            "L'API Hydro-Québec a refusé l'accès. Vérifiez le jeton OAuth2 dans « Connexion à l'API ».",
-            'danger'
-          );
-        } else {
+        {
           state.usedFallback = true;
           state.fieldMap = {
             timestamp: 'timestamp',
@@ -1563,75 +1183,7 @@
       }
     }
 
-    loadPersistedAuth();
-    syncAuthInputs();
-    updateTokenStatus();
-
-    if (elements.saveCredentials) {
-      elements.saveCredentials.addEventListener('click', () => {
-        state.auth.clientId = (elements.clientId?.value || '').trim();
-        state.auth.clientSecret = (elements.clientSecret?.value || '').trim();
-        persistAuthState();
-        syncAuthInputs();
-        updateTokenStatus();
-        setTokenStatusOverride('Identifiants OAuth2 enregistrés localement.', 'success', true);
-      });
-    }
-
-    if (elements.saveToken) {
-      elements.saveToken.addEventListener('click', () => {
-        const token = (elements.accessToken?.value || '').trim();
-        state.auth.accessToken = token;
-        state.auth.tokenType = 'Bearer';
-        state.auth.tokenExpiresAt = null;
-        persistAuthState();
-        syncAuthInputs();
-        updateTokenStatus();
-        const tone = token ? 'success' : 'warning';
-        const message = token
-          ? 'Jeton OAuth2 enregistré localement.'
-          : 'Jeton supprimé. L’API refusera les requêtes protégées.';
-        setTokenStatusOverride(message, tone, true);
-      });
-    }
-
-    if (elements.requestToken) {
-      elements.requestToken.addEventListener('click', async () => {
-        const clientId = (elements.clientId?.value || '').trim();
-        const clientSecret = (elements.clientSecret?.value || '').trim();
-        if (!clientId || !clientSecret) {
-          setTokenStatusOverride('Indiquez un client ID et un secret avant de demander un jeton.', 'warning', true);
-          return;
-        }
-        state.auth.clientId = clientId;
-        state.auth.clientSecret = clientSecret;
-        persistAuthState();
-        syncAuthInputs();
-        updateTokenStatus();
-        elements.requestToken.disabled = true;
-        try {
-          await tryRefreshToken(true);
-        } finally {
-          elements.requestToken.disabled = false;
-        }
-      });
-    }
-
-    if (elements.clearCredentials) {
-      elements.clearCredentials.addEventListener('click', () => {
-        state.auth.clientId = '';
-        state.auth.clientSecret = '';
-        state.auth.accessToken = '';
-        state.auth.tokenExpiresAt = null;
-        state.auth.tokenType = 'Bearer';
-        persistAuthState();
-        syncAuthInputs();
-        updateTokenStatus();
-        setTokenStatusOverride('Configuration OAuth supprimée du navigateur.', 'warning', true);
-      });
-    }
-
-    elements.form.addEventListener('submit', event => {
+    elements.form.addEventListener(‘submit’, event => {
       event.preventDefault();
       refreshDashboard();
     });
@@ -1669,17 +1221,10 @@
 
     (async () => {
       try {
-        await ensureValidTokenFreshness();
-      } catch (error) {
-        console.warn('Impossible de préparer le jeton OAuth2 automatiquement.', error);
-      }
-
-      try {
         await loadStationDirectory();
       } catch (error) {
         console.warn('Impossible de récupérer le répertoire des stations', error);
       }
-
       await refreshDashboard();
     })();
   </script>

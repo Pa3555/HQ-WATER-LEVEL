@@ -587,11 +587,15 @@
       if (!headers.has('Accept')) {
         headers.set('Accept', 'application/json');
       }
-      const response = await fetchWithTimeout(resource, { ...options, headers });
+      let response;
+      try {
+        response = await fetchWithTimeout(resource, { ...options, headers });
+      } catch (networkError) {
+        throw new Error(`Erreur réseau : ${networkError.message}`);
+      }
       if (!response.ok) {
-        const error = new Error(`Erreur API ${response.status}`);
-        error.status = response.status;
-        throw error;
+        const body = await response.text().catch(() => '');
+        throw new Error(`Erreur API ${response.status} : ${body.slice(0, 120)}`);
       }
       return response;
     }
@@ -665,9 +669,7 @@
     async function loadRecords() {
       const params = new URLSearchParams({
         limit: elements.limit.value || '100',
-        timezone: 'America/Toronto',
-        order_by: 'date DESC',
-        where: "date < 'A'"
+        timezone: 'America/Toronto'
       });
 
       let url = `${API_URL}?${params.toString()}`;

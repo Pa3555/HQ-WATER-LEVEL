@@ -520,14 +520,14 @@
   </template>
 
   <script>
-    const API_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometeorologiques/records';
-    const AGGREGATES_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometeorologiques/aggregates';
+    const API_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometriques/records';
+    const AGGREGATES_URL = 'https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/donnees-hydrometriques/records';
     const FETCH_TIMEOUT = 15000;
     const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000;
     const DEFAULT_STATION_NAME = 'Drummondville';
     const DEFAULT_REGION = 'Centre-du-Québec';
-    const REGION_RESTRICTION = `regionqc:"${DEFAULT_REGION}"`;
-    const OAUTH_TOKEN_URL = 'https://donnees.hydroquebec.com/oauth/token';
+    const REGION_RESTRICTION = `regionqc:${DEFAULT_REGION}`;
+    const OAUTH_TOKEN_URL = 'https://donnees.hydroquebec.com/api/oauth2/token';
     const AUTH_STORAGE_KEY = 'hq-water-level::oauth';
     const TONE_COLORS = {
       info: 'rgba(148, 163, 184, 0.85)',
@@ -583,11 +583,19 @@
     const FALLBACK_STATIONS = ['Drummondville'];
 
     const fieldHints = {
-      timestamp: ['date_observation', 'date_heure', 'date_releve', 'datetime', 'time', 'timestamp', 'date'],
+      timestamp: ['split_date', 'date_observation', 'date_heure', 'date_releve', 'datetime', 'time', 'timestamp', 'date'],
       waterLevel: ['niveau_eau_m', 'niveau_eau', 'niveau', 'niveau_m', 'height_m', 'niveau_deau_m'],
       flow: ['debit_m3s', 'debit', 'flow', 'debit_m3_s'],
       precipitation: ['precipitations_24_h_mm', 'precipitation', 'pluie_mm', 'pluie', 'precipitation_mm'],
-      stationName: ['nom_station', 'nom_de_station', 'nom_de_la_station', 'nom', 'station', 'station_name', 'lieu', 'poste', 'post', 'emplacement']
+      stationName: ['nom', 'nom_station', 'nom_de_station', 'nom_de_la_station', 'station', 'station_name', 'lieu', 'poste', 'post', 'emplacement']
+    };
+
+    const UNIT_TO_METRIC = {
+      'm': 'waterLevel',
+      'm.': 'waterLevel',
+      'm3/s': 'flow',
+      'm³/s': 'flow',
+      'mm': 'precipitation'
     };
 
     const state = {
@@ -952,51 +960,38 @@
         }
       };
 
-      for (const field of fieldHints.stationName) {
-        const params = new URLSearchParams({
-          select: field,
-          group_by: field,
-          order_by: field,
-          limit: '500',
-          where: `${field} IS NOT NULL`
+      const stationField = fieldHints.stationName[0];
+      const params = new URLSearchParams({
+        select: stationField,
+        group_by: stationField,
+        order_by: stationField,
+        limit: '500',
+        where: `${stationField} IS NOT NULL`
+      });
+
+      if (REGION_RESTRICTION) {
+        params.append('refine', REGION_RESTRICTION);
+      }
+
+      try {
+        const response = await authorisedFetch(`${AGGREGATES_URL}?${params.toString()}`, {
+          headers: { 'Accept': 'application/json' }
         });
 
-        if (REGION_RESTRICTION) {
-          params.append('refine', REGION_RESTRICTION);
-        }
-
-        try {
-          const response = await authorisedFetch(`${AGGREGATES_URL}?${params.toString()}`, {
-            headers: {
-              'Accept': 'application/json'
-            }
-          });
-
-          if (!response.ok) {
-            continue;
-          }
-
+        if (response.ok) {
           const payload = await response.json();
-          const records = Array.isArray(payload.results) ? payload.results : payload.records;
-          if (!Array.isArray(records) || !records.length) {
-            continue;
-          }
-
+          const records = Array.isArray(payload.results) ? payload.results : (payload.records || []);
           for (const entry of records) {
-            if (entry && field in entry) {
-              addStation(entry[field]);
+            if (entry && stationField in entry) {
+              addStation(entry[stationField]);
             }
           }
-
-          if (discovered.size) {
-            break;
-          }
-        } catch (error) {
-          if (error?.code === 'unauthorized') {
-            console.warn('Station directory lookup unauthorized for field', field, error);
-            break;
-          }
-          console.warn('Station directory lookup failed for field', field, error);
+        }
+      } catch (error) {
+        if (error?.code === 'unauthorized') {
+          console.warn('Station directory lookup unauthorized', error);
+        } else {
+          console.warn('Station directory lookup failed', error);
         }
       }
 
@@ -1023,7 +1018,8 @@
     async function loadRecords() {
       const params = new URLSearchParams({
         limit: elements.limit.value || '100',
-        timezone: 'America/Toronto'
+        timezone: 'America/Toronto',
+        order_by: 'split_date DESC'
       });
 
       if (REGION_RESTRICTION) {
@@ -1110,6 +1106,38 @@
       }
       const number = Number(value);
       return Number.isFinite(number) ? number : undefined;
+    }
+
+    function isLongFormat(records) {
+      const sample = records.find(r => r && Object.keys(r).length);
+      return sample ? 'split_value' in sample : false;
+    }
+
+    function pivotRecords(rawRecords) {
+      const groups = new Map();
+      for (const record of rawRecords) {
+        const dateKey = record.split_date || '';
+        const stationKey = record.nom || record.nom_station || '';
+        const key = `${stationKey}||${dateKey}`;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            stationName: stationKey || DEFAULT_STATION_NAME,
+            timestamp: dateKey ? new Date(dateKey) : null,
+            waterLevel: undefined,
+            flow: undefined,
+            precipitation: undefined,
+            raw: record
+          });
+        }
+        const group = groups.get(key);
+        const unit = (record.depil_json_nom_unite_mesure || '').trim().toLowerCase();
+        const value = toNumber(record.split_value);
+        const metric = UNIT_TO_METRIC[unit];
+        if (metric !== undefined && value !== undefined) {
+          group[metric] = value;
+        }
+      }
+      return Array.from(groups.values());
     }
 
     function filterRecords(records) {
@@ -1424,8 +1452,12 @@
             ? { ...record.fields, record_timestamp: record.record_timestamp }
             : record
         );
-        state.fieldMap = detectFields(state.rawRecords);
-        state.normalizedRecords = state.rawRecords.map(record => normaliseRecord(record, state.fieldMap));
+        if (isLongFormat(state.rawRecords)) {
+          state.normalizedRecords = pivotRecords(state.rawRecords);
+        } else {
+          state.fieldMap = detectFields(state.rawRecords);
+          state.normalizedRecords = state.rawRecords.map(record => normaliseRecord(record, state.fieldMap));
+        }
         updateStationOptions(state.normalizedRecords);
         rebuildProcessedRecords();
         state.lastFetch = new Date();

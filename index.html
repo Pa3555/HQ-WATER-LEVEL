@@ -252,7 +252,8 @@
 
     .table-wrapper {
       border-radius: 16px;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: auto;
       border: 1px solid rgba(148, 163, 184, 0.18);
       max-height: 420px;
     }
@@ -669,7 +670,8 @@
     async function loadRecords() {
       const params = new URLSearchParams({
         limit: elements.limit.value || '100',
-        timezone: 'America/Toronto'
+        timezone: 'America/Toronto',
+        order_by: '-date'
       });
 
       let url = `${API_URL}?${params.toString()}`;
@@ -991,7 +993,8 @@
 
       const template = elements.rowTemplate.content;
 
-      records.forEach(entry => {
+      const displayRows = records.slice().reverse();
+      displayRows.forEach(entry => {
         const clone = template.cloneNode(true);
         clone.querySelector('.date').textContent = entry.timestamp ? formatter.format(entry.timestamp) : '–';
         clone.querySelector('.level').textContent = typeof entry.waterLevel === 'number' ? entry.waterLevel.toFixed(2) : '–';
@@ -1218,6 +1221,10 @@
     });
 
     (async () => {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      elements.start.value = todayStr;
+      elements.end.value = todayStr;
       try {
         await loadStationDirectory();
       } catch (error) {

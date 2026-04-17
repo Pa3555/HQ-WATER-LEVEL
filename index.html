@@ -972,7 +972,7 @@
         where: `${stationField} IS NOT NULL`
       });
 
-      const stationUrl = `${AGGREGATES_URL}?${params.toString()}${REGION_RESTRICTION ? `&refine=${REGION_RESTRICTION}` : ''}`;
+      const stationUrl = `${AGGREGATES_URL}?${params.toString()}${REGION_RESTRICTION ? `&refine=${buildRefineParam(REGION_RESTRICTION)}` : ''}`;
 
       try {
         const response = await authorisedFetch(stationUrl, {
@@ -1016,16 +1016,24 @@
       return resolvedStations;
     }
 
+    function buildRefineParam(restriction) {
+      const colonIdx = restriction.indexOf(':');
+      const facet = restriction.slice(0, colonIdx);
+      const value = restriction.slice(colonIdx + 1);
+      return `${facet}:${encodeURIComponent(value)}`;
+    }
+
     async function loadRecords() {
       const params = new URLSearchParams({
         limit: elements.limit.value || '100',
         timezone: 'America/Toronto',
-        order_by: 'date DESC'
+        order_by: 'date DESC',
+        where: "date < 'A'"
       });
 
       let url = `${API_URL}?${params.toString()}`;
       if (REGION_RESTRICTION) {
-        url += `&refine=${REGION_RESTRICTION}`;
+        url += `&refine=${buildRefineParam(REGION_RESTRICTION)}`;
       }
       const response = await authorisedFetch(url, {
         headers: {

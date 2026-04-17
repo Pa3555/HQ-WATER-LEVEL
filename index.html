@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.5/dist/chart.umd.min.js" integrity="sha256-xNHpQg1q0xXzqQ4I6hO3nKLDnla4fK8pSt2TvseuxvI=" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.umd.min.js" integrity="sha256-4PH9mqfj0COi4SsA/smYvWx1cIHw1CapV1UyTY7ekxg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.5/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" crossorigin="anonymous"></script>
   <style>
     :root {
       color-scheme: light dark;
@@ -1185,7 +1185,7 @@
       }
     }
 
-    elements.form.addEventListener(‘submit’, event => {
+    elements.form.addEventListener('submit', event => {
       event.preventDefault();
       refreshDashboard();
     });
